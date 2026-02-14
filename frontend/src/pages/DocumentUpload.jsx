@@ -21,29 +21,21 @@ const DocumentUpload = () => {
     const dispatch = useDispatch()
     const navigate = useNavigate()
 
-    // State for file upload
     const [file, setFile] = useState(null)
     const [preview, setPreview] = useState(null)
-
-    // State for text paste
     const [textContent, setTextContent] = useState('')
     const [textTitle, setTextTitle] = useState('')
-
-    // Common state
     const [documentType, setDocumentType] = useState('OT')
     const [loading, setLoading] = useState(false)
     const [uploadMethod, setUploadMethod] = useState('file')
     const [uploadProgress, setUploadProgress] = useState(0)
-
-    // ✅ ADD THIS: Flag to prevent double processing
     const [processingStarted, setProcessingStarted] = useState(false)
 
-    // File dropzone handlers
     const onDrop = useCallback((acceptedFiles) => {
         const selectedFile = acceptedFiles[0]
         setFile(selectedFile)
         setUploadMethod('file')
-        setProcessingStarted(false) // Reset flag on new file
+        setProcessingStarted(false)
 
         const fileName = selectedFile.name
         const titleWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
@@ -77,13 +69,13 @@ const DocumentUpload = () => {
         setTextTitle('')
         setDocumentType('OT')
         setUploadProgress(0)
-        setProcessingStarted(false) // Reset flag
+        setProcessingStarted(false)
     }
 
     const handlePaste = (e) => {
         const pastedText = e.clipboardData?.getData('text') || e.target.value
         setTextContent(pastedText)
-        setProcessingStarted(false) // Reset flag
+        setProcessingStarted(false)
 
         if (!textTitle) {
             const firstLine = pastedText.split('\n')[0].slice(0, 50)
@@ -93,13 +85,12 @@ const DocumentUpload = () => {
 
     const handleTextChange = (e) => {
         setTextContent(e.target.value)
-        setProcessingStarted(false) // Reset flag
+        setProcessingStarted(false)
     }
 
     const handleSubmit = async (e) => {
         e.preventDefault()
 
-        // ✅ PREVENT DOUBLE SUBMISSION
         if (processingStarted) {
             console.log('⏳ Processing already started, ignoring duplicate call')
             return
@@ -116,7 +107,7 @@ const DocumentUpload = () => {
         }
 
         setLoading(true)
-        setProcessingStarted(true) // ✅ Set flag to prevent double processing
+        setProcessingStarted(true)
 
         const formData = new FormData()
 
@@ -133,7 +124,6 @@ const DocumentUpload = () => {
         formData.append('document_type', documentType)
 
         try {
-            // Upload document
             const result = await dispatch(uploadDocument(formData))
 
             if (!result.error && result.payload?.id) {
@@ -161,8 +151,6 @@ const DocumentUpload = () => {
                         )
                         console.log('✅ Processing triggered:', processResponse.data)
                         toast.success('Document analysis started!')
-
-                        // Navigate after successful processing trigger
                         setTimeout(() => navigate(`/documents/${documentId}`), 1500)
                     } catch (processError) {
                         console.error('❌ Process trigger failed:', processError)
@@ -194,7 +182,7 @@ const DocumentUpload = () => {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
                     Upload Document
                 </h1>
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
                     Upload files or paste text for AI-powered risk analysis
                 </p>
             </div>
@@ -207,8 +195,8 @@ const DocumentUpload = () => {
                         resetForm()
                     }}
                     className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all ${uploadMethod === 'file'
-                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                         }`}
                 >
                     <CloudArrowUpIcon className="w-5 h-5 mr-2" />
@@ -220,8 +208,8 @@ const DocumentUpload = () => {
                         resetForm()
                     }}
                     className={`flex items-center px-6 py-3 rounded-xl font-medium transition-all ${uploadMethod === 'text'
-                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
-                        : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'
+                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                         }`}
                 >
                     <ClipboardIcon className="w-5 h-5 mr-2" />
@@ -230,7 +218,7 @@ const DocumentUpload = () => {
             </div>
 
             {/* Main Card */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 p-8">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
                 <form onSubmit={handleSubmit}>
                     {/* File Upload Method */}
                     {uploadMethod === 'file' && (
@@ -238,9 +226,9 @@ const DocumentUpload = () => {
                             {...getRootProps()}
                             onClick={open}
                             className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
-                         transition-all duration-300 ${isDragActive
-                                    ? 'border-primary-500 bg-primary-50/50 scale-105'
-                                    : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50/50'
+                                transition-all duration-300 ${isDragActive
+                                    ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/20 scale-105'
+                                    : 'border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500 hover:bg-gray-50/50 dark:hover:bg-gray-700/50'
                                 }`}
                         >
                             <input {...getInputProps()} />
@@ -261,17 +249,15 @@ const DocumentUpload = () => {
                                                     setFile(null)
                                                     setPreview(null)
                                                 }}
-                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full
-                                 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
                                             >
                                                 <XMarkIcon className="w-4 h-4" />
                                             </button>
                                         </div>
                                     ) : (
                                         <div className="relative inline-block">
-                                            <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100
-                                    rounded-2xl flex items-center justify-center">
-                                                <FileIcon className="w-12 h-12 text-primary-600" />
+                                            <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 rounded-2xl flex items-center justify-center">
+                                                <FileIcon className="w-12 h-12 text-primary-600 dark:text-primary-400" />
                                             </div>
                                             <button
                                                 type="button"
@@ -280,8 +266,7 @@ const DocumentUpload = () => {
                                                     setFile(null)
                                                     setPreview(null)
                                                 }}
-                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full
-                                 flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
+                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
                                             >
                                                 <XMarkIcon className="w-4 h-4" />
                                             </button>
@@ -289,26 +274,25 @@ const DocumentUpload = () => {
                                     )}
 
                                     <div>
-                                        <p className="text-lg font-semibold text-gray-900">{file.name}</p>
-                                        <p className="text-sm text-gray-500">
+                                        <p className="text-lg font-semibold text-gray-900 dark:text-white">{file.name}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
                                             {(file.size / 1024 / 1024).toFixed(2)} MB
                                         </p>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100
-                                rounded-3xl flex items-center justify-center animate-float">
-                                        <CloudArrowUpIcon className="w-12 h-12 text-primary-600" />
+                                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/30 dark:to-secondary-900/30 rounded-3xl flex items-center justify-center animate-float">
+                                        <CloudArrowUpIcon className="w-12 h-12 text-primary-600 dark:text-primary-400" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-semibold text-gray-900 mb-2">
+                                        <p className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
                                             {isDragActive ? 'Drop your file here' : 'Drag & drop your document'}
                                         </p>
-                                        <p className="text-gray-600 mb-4">
-                                            or <span className="text-primary-600 font-semibold cursor-pointer hover:underline">browse files</span>
+                                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                            or <span className="text-primary-600 dark:text-primary-400 font-semibold cursor-pointer hover:underline">browse files</span>
                                         </p>
-                                        <p className="text-sm text-gray-500">
+                                        <p className="text-sm text-gray-500 dark:text-gray-500">
                                             Supported formats: PDF, PNG, JPG, TIFF, TXT (Max 10MB)
                                         </p>
                                     </div>
@@ -321,7 +305,7 @@ const DocumentUpload = () => {
                     {uploadMethod === 'text' && (
                         <div className="space-y-6">
                             <div className="relative">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     Paste your document text here
                                 </label>
                                 <textarea
@@ -329,30 +313,30 @@ const DocumentUpload = () => {
                                     onChange={handleTextChange}
                                     onPaste={handlePaste}
                                     rows={12}
-                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl
-                           focus:ring-2 focus:ring-primary-500 focus:border-transparent
-                           placeholder:text-gray-400 text-gray-700 font-mono text-sm
-                           transition-all duration-200"
+                                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl
+                                        focus:ring-2 focus:ring-primary-500 focus:border-transparent
+                                        placeholder:text-gray-400 dark:placeholder-gray-500 text-gray-700 dark:text-gray-300 font-mono text-sm
+                                        transition-all duration-200"
                                     placeholder="Paste your contract, terms & conditions, privacy policy, or any legal document here..."
                                 />
                                 {textContent && (
                                     <button
                                         type="button"
                                         onClick={() => setTextContent('')}
-                                        className="absolute top-10 right-3 p-1 text-gray-400 hover:text-gray-600
-                             hover:bg-gray-100 rounded-lg transition-colors"
+                                        className="absolute top-10 right-3 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
+                                            hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
                                     >
                                         <XMarkIcon className="w-5 h-5" />
                                     </button>
                                 )}
                             </div>
 
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
                                 <div className="flex items-start">
-                                    <ClipboardIcon className="w-5 h-5 text-blue-600 mt-0.5 mr-3" />
+                                    <ClipboardIcon className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 mr-3" />
                                     <div>
-                                        <h4 className="text-sm font-semibold text-blue-900 mb-1">Quick Paste Instructions</h4>
-                                        <p className="text-xs text-blue-800">
+                                        <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">Quick Paste Instructions</h4>
+                                        <p className="text-xs text-blue-800 dark:text-blue-400">
                                             • Press Ctrl+V (Cmd+V on Mac) to paste your text<br />
                                             • You can paste up to 100,000 characters<br />
                                             • The text will be saved as a .txt file for analysis
@@ -368,7 +352,7 @@ const DocumentUpload = () => {
                         <div className="mt-8 space-y-6 animate-slide-up">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <label htmlFor="title" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                         Document Title
                                     </label>
                                     <input
@@ -376,25 +360,25 @@ const DocumentUpload = () => {
                                         id="title"
                                         value={textTitle}
                                         onChange={(e) => setTextTitle(e.target.value)}
-                                        className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl
-                             focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
-                             transition-all duration-200"
+                                        className="w-full px-4 py-2.5 bg-white/80 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 rounded-xl
+                                            focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
+                                            transition-all duration-200 dark:text-white"
                                         placeholder="Enter document title"
                                         required
                                     />
                                 </div>
 
                                 <div>
-                                    <label htmlFor="documentType" className="block text-sm font-semibold text-gray-700 mb-2">
+                                    <label htmlFor="documentType" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                         Document Type
                                     </label>
                                     <select
                                         id="documentType"
                                         value={documentType}
                                         onChange={(e) => setDocumentType(e.target.value)}
-                                        className="w-full px-4 py-2.5 bg-white/80 border border-gray-200 rounded-xl
-                             focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
-                             transition-all duration-200"
+                                        className="w-full px-4 py-2.5 bg-white/80 dark:bg-gray-700/80 border border-gray-200 dark:border-gray-600 rounded-xl
+                                            focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
+                                            transition-all duration-200 dark:text-white"
                                     >
                                         <option value="TC">Terms & Conditions</option>
                                         <option value="PP">Privacy Policy</option>
@@ -405,7 +389,7 @@ const DocumentUpload = () => {
                             </div>
 
                             {uploadMethod === 'text' && textContent && (
-                                <div className="flex items-center space-x-4 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2">
+                                <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-2">
                                     <span>📝 Characters: {textContent.length.toLocaleString()}</span>
                                     <span>📊 Words: {textContent.trim().split(/\s+/).filter(Boolean).length.toLocaleString()}</span>
                                     <span>📏 Lines: {textContent.split('\n').length}</span>
@@ -415,25 +399,25 @@ const DocumentUpload = () => {
                             {loading && (
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Processing...</span>
-                                        <span className="text-primary-600 font-semibold">{uploadProgress}%</span>
+                                        <span className="text-gray-600 dark:text-gray-400">Processing...</span>
+                                        <span className="text-primary-600 dark:text-primary-400 font-semibold">{uploadProgress}%</span>
                                     </div>
-                                    <div className="progress-bar h-2">
+                                    <div className="progress-bar h-2 bg-gray-200 dark:bg-gray-700">
                                         <div
-                                            className="progress-fill"
+                                            className="progress-fill bg-gradient-to-r from-primary-500 to-primary-600"
                                             style={{ width: `${uploadProgress}%` }}
                                         ></div>
                                     </div>
                                 </div>
                             )}
 
-                            <div className="flex justify-end space-x-4 pt-4 border-t border-gray-100">
+                            <div className="flex justify-end space-x-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                                 <button
                                     type="button"
                                     onClick={resetForm}
-                                    className="px-6 py-2.5 bg-white text-gray-700 rounded-xl border border-gray-200
-                           hover:bg-gray-50 hover:border-gray-300 transition-all duration-200
-                           font-medium shadow-sm hover:shadow-md"
+                                    className="px-6 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600
+                                        hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200
+                                        font-medium shadow-sm hover:shadow-md"
                                 >
                                     Cancel
                                 </button>
@@ -441,10 +425,10 @@ const DocumentUpload = () => {
                                     type="submit"
                                     disabled={loading || processingStarted}
                                     className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700
-                           text-white rounded-xl hover:from-primary-700 hover:to-primary-800
-                           transition-all duration-200 font-medium shadow-lg
-                           shadow-primary-500/20 hover:shadow-xl disabled:opacity-50
-                           disabled:cursor-not-allowed flex items-center"
+                                        text-white rounded-xl hover:from-primary-700 hover:to-primary-800
+                                        transition-all duration-200 font-medium shadow-lg
+                                        shadow-primary-500/20 hover:shadow-xl disabled:opacity-50
+                                        disabled:cursor-not-allowed flex items-center"
                                 >
                                     {loading ? (
                                         <>
@@ -464,45 +448,46 @@ const DocumentUpload = () => {
                 </form>
             </div>
 
-            {/* Features Grid and Tips Section - keep as is */}
+            {/* Features Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100">
-                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
-                        <CloudArrowUpIcon className="w-6 h-6 text-blue-600" />
+                <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100 dark:border-gray-700">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mb-4">
+                        <CloudArrowUpIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <h3 className="font-semibold text-gray-900 mb-2">File Upload</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">File Upload</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                         Upload PDFs, images, or text files. OCR automatically extracts text from scanned documents.
                     </p>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100">
-                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
-                        <ClipboardIcon className="w-6 h-6 text-purple-600" />
+                <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100 dark:border-gray-700">
+                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center mb-4">
+                        <ClipboardIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Text Pasting</h3>
-                    <p className="text-sm text-gray-600">
-                        Directly paste contract text, terms & conditions, or any legal content for instant analysis.
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Text Pasting</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Directly paste contract text for instant analysis.
                     </p>
                 </div>
 
-                <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100">
-                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
-                        <DocumentTextIcon className="w-6 h-6 text-green-600" />
+                <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100 dark:border-gray-700">
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center mb-4">
+                        <DocumentTextIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
                     </div>
-                    <h3 className="font-semibold text-gray-900 mb-2">AI Risk Analysis</h3>
-                    <p className="text-sm text-gray-600">
-                        Advanced NLP detects financial, privacy, legal, and subscription risks in your documents.
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-2">AI Risk Analysis</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Advanced NLP detects financial, privacy, legal, and subscription risks.
                     </p>
                 </div>
             </div>
 
-            <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-2xl p-6 border border-primary-100">
-                <h3 className="text-lg font-semibold text-primary-900 mb-3 flex items-center">
+            {/* Tips Section */}
+            <div className="bg-gradient-to-r from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 rounded-2xl p-6 border border-primary-100 dark:border-primary-800">
+                <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-300 mb-3 flex items-center">
                     <PencilSquareIcon className="w-5 h-5 mr-2" />
                     Pro Tips for Best Results
                 </h3>
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-primary-800">
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-primary-800 dark:text-primary-400">
                     <li className="flex items-start">
                         <span className="w-1.5 h-1.5 bg-primary-500 rounded-full mt-1.5 mr-2"></span>
                         For scanned documents, use high-quality images (300 DPI recommended)

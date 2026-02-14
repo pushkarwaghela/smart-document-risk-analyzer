@@ -34,17 +34,20 @@ const RiskReport = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-64 dark:bg-gray-900">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
         )
     }
 
     if (!report) {
-        return <div>Report not found</div>
+        return (
+            <div className="text-center py-12 dark:bg-gray-900">
+                <p className="text-gray-500 dark:text-gray-400">Report not found</p>
+            </div>
+        )
     }
 
-    // Prepare data for charts
     const riskLevelData = [
         { name: 'Critical', value: report.critical_risks },
         { name: 'High', value: report.high_risks },
@@ -60,19 +63,19 @@ const RiskReport = () => {
         : []
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 dark:bg-gray-900 min-h-screen">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                    <Link to={`/documents/${id}`} className="text-gray-500 hover:text-gray-700">
+                    <Link to={`/documents/${id}`} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
                         <ArrowLeftIcon className="w-5 h-5" />
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Risk Analysis Report</h1>
-                        <p className="text-gray-600">{report.document_title}</p>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Risk Analysis Report</h1>
+                        <p className="text-gray-600 dark:text-gray-400">{report.document_title}</p>
                     </div>
                 </div>
-                <button className="btn-secondary flex items-center">
+                <button className="btn-secondary dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 flex items-center">
                     <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
                     Download PDF
                 </button>
@@ -80,29 +83,28 @@ const RiskReport = () => {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="card bg-gradient-to-br from-primary-50 to-primary-100 border-primary-200">
-                    <p className="text-sm text-primary-600 font-medium">Total Risks</p>
-                    <p className="text-3xl font-bold text-primary-700">{report.total_risks}</p>
+                <div className="card bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/30 dark:to-primary-800/30 border-primary-200 dark:border-primary-800">
+                    <p className="text-sm text-primary-600 dark:text-primary-400 font-medium">Total Risks</p>
+                    <p className="text-3xl font-bold text-primary-700 dark:text-primary-300">{report.total_risks}</p>
                 </div>
-                <div className="card bg-red-50 border-red-200">
-                    <p className="text-sm text-red-600 font-medium">Critical</p>
-                    <p className="text-3xl font-bold text-red-700">{report.critical_risks}</p>
+                <div className="card bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800">
+                    <p className="text-sm text-red-600 dark:text-red-400 font-medium">Critical</p>
+                    <p className="text-3xl font-bold text-red-700 dark:text-red-300">{report.critical_risks}</p>
                 </div>
-                <div className="card bg-orange-50 border-orange-200">
-                    <p className="text-sm text-orange-600 font-medium">High</p>
-                    <p className="text-3xl font-bold text-orange-700">{report.high_risks}</p>
+                <div className="card bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800">
+                    <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">High</p>
+                    <p className="text-3xl font-bold text-orange-700 dark:text-orange-300">{report.high_risks}</p>
                 </div>
-                <div className="card bg-yellow-50 border-yellow-200">
-                    <p className="text-sm text-yellow-600 font-medium">Medium</p>
-                    <p className="text-3xl font-bold text-yellow-700">{report.medium_risks}</p>
+                <div className="card bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800">
+                    <p className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">Medium</p>
+                    <p className="text-3xl font-bold text-yellow-700 dark:text-yellow-300">{report.medium_risks}</p>
                 </div>
             </div>
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Risk Level Distribution */}
-                <div className="card">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Level Distribution</h2>
+                <div className="card dark:bg-gray-800 dark:border-gray-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Level Distribution</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -120,22 +122,34 @@ const RiskReport = () => {
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: '#1f2937',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#fff'
+                                    }}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Risk Category Distribution */}
-                <div className="card">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Risk Category Distribution</h2>
+                <div className="card dark:bg-gray-800 dark:border-gray-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Risk Category Distribution</h2>
                     <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={riskCategoryData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" />
-                                <YAxis />
-                                <Tooltip />
+                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                <XAxis dataKey="name" stroke="#9ca3af" />
+                                <YAxis stroke="#9ca3af" />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: '#1f2937',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                    }}
+                                />
                                 <Legend />
                                 <Bar dataKey="value" fill="#3b82f6" />
                             </BarChart>
@@ -145,28 +159,30 @@ const RiskReport = () => {
             </div>
 
             {/* Top Risk Clauses */}
-            <div className="card">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Top 5 Risky Clauses</h2>
+            <div className="card dark:bg-gray-800 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top 5 Risky Clauses</h2>
                 <div className="space-y-4">
                     {report.top_risky_clauses?.map((risk, index) => (
-                        <div key={index} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                            <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                <span className="text-red-600 font-bold">{index + 1}</span>
+                        <div key={index} className="flex items-start space-x-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                            <div className="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                                <span className="text-red-600 dark:text-red-400 font-bold">{index + 1}</span>
                             </div>
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${risk.risk_level === 'CRITICAL' ? 'bg-red-100 text-red-800' :
-                                            risk.risk_level === 'HIGH' ? 'bg-orange-100 text-orange-800' :
-                                                'bg-yellow-100 text-yellow-800'
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${risk.risk_level === 'CRITICAL'
+                                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                            : risk.risk_level === 'HIGH'
+                                                ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
                                         }`}>
                                         {risk.risk_level}
                                     </span>
-                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                         {risk.category_display}
                                     </span>
                                 </div>
-                                <p className="text-gray-700">{risk.clause_text}</p>
-                                <p className="text-xs text-gray-500 mt-1">{risk.explanation}</p>
+                                <p className="text-gray-700 dark:text-gray-300">{risk.clause_text}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{risk.explanation}</p>
                             </div>
                         </div>
                     ))}
