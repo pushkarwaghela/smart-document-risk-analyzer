@@ -1,39 +1,84 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import axios from 'axios'
 import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 const DocumentDetail = () => {
     const { id } = useParams()
+    const location = useLocation()
     const [document, setDocument] = useState(null)
     const [risks, setRisks] = useState([])
     const [loading, setLoading] = useState(true)
+    const [pollingInterval, setPollingInterval] = useState(null)
     const { token } = useSelector((state) => state.auth)
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
+    // Check if we just came from upload
+    const justUploaded = location.state?.justUploaded || false
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingInterval) {
+                clearInterval(pollingInterval)
+            }
+        }
+    }, [pollingInterval])
+
+    // Initial fetch
     useEffect(() => {
         fetchDocumentDetails()
     }, [id])
 
+    // Start polling if document is processing
+    useEffect(() => {
+        if (document?.status === 'PROCESSING' || justUploaded) {
+            console.log('🔄 Starting polling for document:', id)
+            const interval = setInterval(() => {
+                fetchDocumentDetails()
+            }, 3000) // Poll every 3 seconds
+            setPollingInterval(interval)
+        } else {
+            // Stop polling if document is completed or failed
+            if (pollingInterval) {
+                console.log('⏹️ Stopping polling - document status:', document?.status)
+                clearInterval(pollingInterval)
+                setPollingInterval(null)
+            }
+        }
+    }, [document?.status, justUploaded])
+
     const fetchDocumentDetails = async () => {
         try {
-            setLoading(true)
+            console.log('📡 Fetching document details for:', id)
             const response = await axios.get(`${API_URL}/documents/${id}/`, {
                 headers: { Authorization: `Token ${token}` }
             })
             setDocument(response.data)
+            console.log('📄 Document status:', response.data.status)
 
-            // Fetch risks if document is completed
+            // If document is completed, fetch risks
             if (response.data.status === 'COMPLETED') {
+                console.log('✅ Document completed, fetching risks...')
                 const risksResponse = await axios.get(`${API_URL}/analyze/documents/${id}/risks/`, {
                     headers: { Authorization: `Token ${token}` }
                 })
                 setRisks(risksResponse.data)
+                console.log(`📊 Found ${risksResponse.data.length} risks`)
+                setLoading(false)
+            }
+            // If failed, stop loading
+            else if (response.data.status === 'FAILED') {
+                console.log('❌ Document processing failed')
+                setLoading(false)
+            }
+            // If still processing, keep loading true
+            else {
+                setLoading(true)
             }
         } catch (error) {
             console.error('Error fetching document:', error)
-        } finally {
             setLoading(false)
         }
     }
@@ -58,12 +103,22 @@ const DocumentDetail = () => {
         }
     }
 
-    if (loading) {
+    // Show loading for both initial load and processing state
+    if (loading || document?.status === 'PROCESSING') {
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading document details...</p>
+                    <p className="mt-4 text-gray-600">
+                        {document?.status === 'PROCESSING'
+                            ? 'AI is analyzing your document for risks...'
+                            : 'Loading document details...'}
+                    </p>
+                    {document?.status === 'PROCESSING' && (
+                        <p className="text-sm text-gray-500 mt-2">
+                            This may take a few moments. Page will auto-refresh when complete.
+                        </p>
+                    )}
                 </div>
             </div>
         )
@@ -101,7 +156,7 @@ const DocumentDetail = () => {
                 </span>
             </div>
 
-            {/* Processing State */}
+            {/* Processing State - Kept for any edge cases */}
             {document.status === 'PROCESSING' && (
                 <div className="card text-center py-12">
                     <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-600 mx-auto"></div>
@@ -146,25 +201,29 @@ const DocumentDetail = () => {
                     {/* Risk Clauses */}
                     <div className="card">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Detected Risk Clauses</h2>
-                        <div className="space-y-4">
-                            {risks.map((risk, index) => (
-                                <div key={risk.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div className="flex gap-2">
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskLevelColor(risk.risk_level)}`}>
-                                                {risk.risk_level}
-                                            </span>
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskCategoryColor(risk.category)}`}>
-                                                {risk.category_display}
-                                            </span>
+                        {risks.length === 0 ? (
+                            <p className="text-gray-500 text-center py-8">No risks detected in this document</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {risks.map((risk) => (
+                                    <div key={risk.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex gap-2">
+                                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskLevelColor(risk.risk_level)}`}>
+                                                    {risk.risk_level}
+                                                </span>
+                                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getRiskCategoryColor(risk.category)}`}>
+                                                    {risk.category_display}
+                                                </span>
+                                            </div>
+                                            <span className="text-xs text-gray-500">Page {risk.page_number}</span>
                                         </div>
-                                        <span className="text-xs text-gray-500">Page {risk.page_number}</span>
+                                        <p className="text-gray-700 text-sm mb-2">"{risk.clause_text}"</p>
+                                        <p className="text-xs text-gray-500">{risk.explanation}</p>
                                     </div>
-                                    <p className="text-gray-700 text-sm mb-2">"{risk.clause_text}"</p>
-                                    <p className="text-xs text-gray-500">{risk.explanation}</p>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </>
             )}
