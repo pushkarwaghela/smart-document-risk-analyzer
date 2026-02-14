@@ -154,18 +154,18 @@ class OCRService:
     
 
 class RiskAnalyzer:
-    """Risk analysis service using NLP and keyword matching"""
-    
+    """Risk analysis service using NLP and keyword matching - FIXED: No duplicates"""
+
     def __init__(self):
         # Load spaCy model
         try:
             self.nlp = spacy.load('en_core_web_sm')
-            print("âœ… spaCy model loaded successfully")
+            print("✅ spaCy model loaded successfully")
         except:
-            print("âš ï¸ spaCy model not found. Downloading...")
+            print("⚠️ spaCy model not found. Downloading...")
             os.system('python -m spacy download en_core_web_sm')
             self.nlp = spacy.load('en_core_web_sm')
-        
+
         # Comprehensive risk keywords by category
         self.risk_keywords = {
             'FINANCIAL': [
@@ -201,7 +201,7 @@ class RiskAnalyzer:
                 'notice period', 'cancellation period', 'renewal notice'
             ]
         }
-        
+
         # Risk level thresholds
         self.risk_thresholds = {
             'CRITICAL': 4,
@@ -209,31 +209,54 @@ class RiskAnalyzer:
             'MEDIUM': 2,
             'LOW': 1
         }
-    
+
     def analyze_text(self, text: str) -> List[Dict[str, Any]]:
-        """Analyze text for risks using NLP and keyword matching"""
+        """Analyze text for risks using NLP and keyword matching - NO DUPLICATES"""
         risks = []
         
         if not text or len(text.strip()) < 20:
             return risks
-        
+
         # Process text with spaCy
-        doc = self.nlp(text[:15000])  # Limit for performance
-        sentences = [sent.text.strip() for sent in doc.sents]
+        doc = self.nlp(text[:15000])
         
-        for sentence in sentences:
+        # Get all sentences
+        all_sentences = [sent.text.strip() for sent in doc.sents]
+        print(f"📝 Raw sentences from spaCy: {len(all_sentences)}")
+        
+        # Deduplicate sentences using normalized text
+        unique_sentences = []
+        seen_sentences = set()
+        
+        for sentence in all_sentences:
             if len(sentence) < 20:
                 continue
                 
-            sentence_lower = sentence.lower()
+            # Create normalized version (lowercase, remove extra spaces)
+            normalized = ' '.join(sentence.lower().split())
             
+            # Skip if we've seen this sentence before
+            if normalized in seen_sentences:
+                continue
+                
+            seen_sentences.add(normalized)
+            unique_sentences.append(sentence)
+        
+        print(f"🎯 Unique sentences after deduplication: {len(unique_sentences)}")
+
+        # Track risks by normalized sentence to prevent duplicates
+        seen_risks = set()
+
+        for sentence in unique_sentences:
+            sentence_lower = ' '.join(sentence.lower().split())
+
             # Check each risk category
             for category, keywords in self.risk_keywords.items():
                 matches = []
                 for keyword in keywords:
                     if keyword in sentence_lower:
                         matches.append(keyword)
-                
+
                 # If enough keywords match, classify as risk
                 if len(matches) >= self.risk_thresholds['MEDIUM']:
                     # Determine risk level based on number of matches
@@ -243,10 +266,19 @@ class RiskAnalyzer:
                         risk_level = 'HIGH'
                     else:
                         risk_level = 'MEDIUM'
-                    
+
                     # Calculate confidence score
                     confidence = min(len(matches) * 20, 95)
                     
+                    # Create unique key for this risk (category + normalized sentence)
+                    risk_key = f"{category}_{sentence_lower[:200]}"
+                    
+                    # Skip if we've already added this exact risk
+                    if risk_key in seen_risks:
+                        continue
+                        
+                    seen_risks.add(risk_key)
+
                     risks.append({
                         'category': category,
                         'risk_level': risk_level,
@@ -256,7 +288,12 @@ class RiskAnalyzer:
                         'confidence': confidence,
                         'keywords_found': matches[:5]
                     })
-        
+                    
+                    # Once we classify a sentence, move to next sentence
+                    # (prevents same sentence being classified under multiple categories)
+                    break
+
+        print(f"✅ Final unique risks: {len(risks)}")
         return risks
 
 
