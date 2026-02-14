@@ -18,6 +18,8 @@ import DocumentDetail from './pages/DocumentDetail'
 import RiskReport from './pages/RiskReport'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
+import NotificationsPage from './pages/NotificationsPage'
+
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.auth)
@@ -62,6 +64,7 @@ function App() {
             <Route path="reports/:id" element={<RiskReport />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="notifications" element={<NotificationsPage />} />
           </Route>
         </Routes>
       </Router>

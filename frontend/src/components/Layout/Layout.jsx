@@ -3,6 +3,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../../store/slices/authSlice'
 import { useTheme } from '../../context/ThemeContext'
+import NotificationBell from '../NotificationBell'
+
 import {
     HomeIcon,
     DocumentArrowUpIcon,
@@ -12,7 +14,6 @@ import {
     Bars3Icon,
     XMarkIcon,
     Cog6ToothIcon,
-    BellIcon,
     ShieldCheckIcon,
     SunIcon,
     MoonIcon,
@@ -24,7 +25,6 @@ const Layout = () => {
     const { user } = useSelector((state) => state.auth)
     const { darkMode, toggleDarkMode } = useTheme()
     const [sidebarOpen, setSidebarOpen] = useState(false)
-    const [notifications] = useState(3)
 
     const handleLogout = () => {
         dispatch(logout())
@@ -80,12 +80,7 @@ const Layout = () => {
                                 <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                             )}
                         </button>
-                        <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative">
-                            <BellIcon className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-                            {notifications > 0 && (
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                            )}
-                        </button>
+                        <NotificationBell position="right" />  {/* Dropdown opens to the right */}
                     </div>
                 </div>
             </div>
@@ -143,9 +138,10 @@ const Layout = () => {
                         ))}
                     </nav>
 
-                    {/* User profile */}
+                    {/* User profile section with 3-column grid */}
                     <div className="p-4 border-t border-gray-200/50 dark:border-gray-700/50">
-                        <div className="flex items-center p-3 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl">
+                        {/* User info */}
+                        <div className="flex items-center p-3 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl mb-3">
                             <div className="flex-shrink-0">
                                 <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-xl shadow-lg flex items-center justify-center">
                                     <span className="text-white font-bold text-lg">
@@ -170,29 +166,35 @@ const Layout = () => {
                             </button>
                         </div>
 
-                        {/* Theme toggle for desktop */}
-                        <div className="mt-3 flex items-center justify-between px-3 py-2">
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Theme</span>
+                        {/* 3-Column Grid for Theme, Notifications, Settings */}
+                        <div className="grid grid-cols-3 gap-2">
+                            {/* Theme Toggle */}
                             <button
                                 onClick={toggleDarkMode}
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+                                title="Toggle theme"
                             >
                                 {darkMode ? (
-                                    <SunIcon className="w-5 h-5 text-yellow-500" />
+                                    <SunIcon className="w-5 h-5 text-yellow-500 mb-1 group-hover:scale-110 transition-transform" />
                                 ) : (
-                                    <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                                    <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-300 mb-1 group-hover:scale-110 transition-transform" />
                                 )}
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Theme</span>
                             </button>
-                        </div>
 
-                        {/* Settings link */}
-                        <div className="mt-2">
+                            {/* Notifications */}
+                            <div className="flex flex-col items-center justify-center">
+                                <NotificationBell position="left" />  {/* Dropdown opens to the left */}
+                                <span className="text-xs text-gray-600 dark:text-gray-400 mt-1">Notifications</span>
+                            </div>
+
+                            {/* Settings */}
                             <NavLink
                                 to="/settings"
-                                className="flex items-center px-3 py-2 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                className="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                             >
-                                <Cog6ToothIcon className="w-4 h-4 mr-2" />
-                                Settings
+                                <Cog6ToothIcon className="w-5 h-5 text-gray-600 dark:text-gray-300 mb-1 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Settings</span>
                             </NavLink>
                         </div>
                     </div>

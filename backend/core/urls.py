@@ -7,7 +7,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/documents/', include('documents.urls')),
-    path('api/analyze/', include('risk_analyzer.urls')),  # ✅ MUST BE HERE
+    path('api/analyze/', include('risk_analyzer.urls')),
+    path('api/notifications/', include('notifications.urls')),
 ]
 
 if settings.DEBUG:

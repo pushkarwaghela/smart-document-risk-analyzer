@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
@@ -233,7 +233,13 @@ const Analytics = () => {
                 <div className="card dark:bg-gray-800 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Activity Trend</h2>
                     <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={trendData}>
                                 <defs>
                                     <linearGradient id="documentsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -273,6 +279,12 @@ const Analytics = () => {
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
+    </div>
+</div>
+    </div>
+</div>
+    </div>
+</div>
                     </div>
                 </div>
 
@@ -281,7 +293,13 @@ const Analytics = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Risk Categories</h2>
                     <div className="h-80">
                         {riskCategoryData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie
                                         data={riskCategoryData}
@@ -303,6 +321,12 @@ const Analytics = () => {
                                     <Tooltip />
                                 </PieChart>
                             </ResponsiveContainer>
+    </div>
+</div>
+    </div>
+</div>
+    </div>
+</div>
                         ) : (
                             <div className="h-full flex items-center justify-center">
                                 <p className="text-gray-500 dark:text-gray-400">No category data available</p>
@@ -316,7 +340,13 @@ const Analytics = () => {
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Risk Severity</h2>
                     <div className="h-80">
                         {riskLevelData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={riskLevelData}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                                     <XAxis dataKey="risk_level" stroke="#9ca3af" />
@@ -335,6 +365,12 @@ const Analytics = () => {
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
+    </div>
+</div>
+    </div>
+</div>
+    </div>
+</div>
                         ) : (
                             <div className="h-full flex items-center justify-center">
                                 <p className="text-gray-500 dark:text-gray-400">No risk level data available</p>
@@ -347,7 +383,13 @@ const Analytics = () => {
                 <div className="card dark:bg-gray-800 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Risk Profile</h2>
                     <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <div style={{ width: "100%", height: "320px", position: "relative" }}>
+    <div style={{ position: "absolute", inset: 0 }}>
+        <ResponsiveContainer width="100%" height="100%">
                             <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                                 <PolarGrid stroke="#374151" />
                                 <PolarAngleAxis dataKey="category" stroke="#9ca3af" />
@@ -368,6 +410,12 @@ const Analytics = () => {
                                 />
                             </RadarChart>
                         </ResponsiveContainer>
+    </div>
+</div>
+    </div>
+</div>
+    </div>
+</div>
                     </div>
                 </div>
             </div>
@@ -428,3 +476,5 @@ const Analytics = () => {
 }
 
 export default Analytics
+
+

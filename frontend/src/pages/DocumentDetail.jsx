@@ -7,12 +7,18 @@ import {
     DocumentArrowDownIcon,
     TagIcon,
     ClipboardDocumentListIcon,
+    DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
+import { exportToPDF, exportToExcel, exportToCSV, exportToJSON } from '../services/exportService';
+import ExportDropdown from '../components/ExportDropdown';  // ✅ ADD THIS LINE!
+import toast from 'react-hot-toast';  // ✅ Also add this for toast notifications
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+
+// Fix PDF worker
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
 
 const DocumentDetail = () => {
     const { id } = useParams()
@@ -85,10 +91,33 @@ const DocumentDetail = () => {
         setTags(tags.filter(t => t.id !== tagId))
     }
 
-    const exportToPDF = () => {
-        // PDF export functionality
-        console.log('Exporting to PDF...')
-    }
+    const handleExport = async (format) => {
+        try {
+            switch (format) {
+                case 'pdf':
+                    await exportToPDF(document, risks);
+                    toast.success('PDF exported successfully!');
+                    break;
+                case 'excel':
+                    exportToExcel([document], risks);
+                    toast.success('Excel exported successfully!');
+                    break;
+                case 'csv':
+                    exportToCSV(risks, `${document.title}_risks`);
+                    toast.success('CSV exported successfully!');
+                    break;
+                case 'json':
+                    exportToJSON({ document, risks }, `${document.title}_data`);
+                    toast.success('JSON exported successfully!');
+                    break;
+                default:
+                    break;
+            }
+        } catch (error) {
+            console.error('Export failed:', error);
+            toast.error('Export failed. Please try again.');
+        }
+    };
 
     const getRiskLevelColor = (level) => ({
         bg: level === 'CRITICAL' ? 'bg-red-100 dark:bg-red-900/30' :
@@ -153,13 +182,7 @@ const DocumentDetail = () => {
                         </p>
                     </div>
                 </div>
-                <button
-                    onClick={exportToPDF}
-                    className="btn-secondary flex items-center"
-                >
-                    <DocumentArrowDownIcon className="w-5 h-5 mr-2" />
-                    Export PDF
-                </button>
+                <ExportDropdown onExport={handleExport} />
             </div>
 
             {/* Tags Section */}

@@ -268,49 +268,49 @@ class DocumentAnalysisService:
         self.risk_analyzer = RiskAnalyzer()
         print("âœ… DocumentAnalysisService initialized")
     
-    def process_document(self, document) -> Dict[str, Any]:
+    def process_document(self, document):
         """
         Complete document processing pipeline
         This is the MAIN method called by views.py - DO NOT RENAME!
         """
         try:
             print(f"\n{'='*60}")
-            print(f"ðŸš€ PROCESSING DOCUMENT: {document.id}")
+            print(f"🚀 PROCESSING DOCUMENT: {document.id}")
             print(f"{'='*60}")
-            print(f"ðŸ“„ Title: {document.title}")
-            print(f"ðŸ“ Type: {document.document_type}")
+            print(f"📄 Title: {document.title}")
+            print(f"📁 Type: {document.document_type}")
             
             # Update document status
             document.status = 'PROCESSING'
             document.save()
-            print(f"âœ… Status updated to: PROCESSING")
+            print(f"✅ Status updated to: PROCESSING")
             
             # Get file path
             file_path = document.file.path
-            print(f"ðŸ“ File path: {file_path}")
+            print(f"📁 File path: {file_path}")
             
             # Check if file exists
             if not os.path.exists(file_path):
-                error_msg = f"âŒ File not found: {file_path}"
+                error_msg = f"❌ File not found: {file_path}"
                 print(error_msg)
                 raise FileNotFoundError(error_msg)
             
-            print(f"âœ… File exists: {os.path.getsize(file_path)} bytes")
+            print(f"✅ File exists: {os.path.getsize(file_path)} bytes")
             
             # Extract text based on file type
             file_extension = os.path.splitext(file_path)[1].lower()
-            print(f"ðŸ“„ File extension: {file_extension}")
+            print(f"📄 File extension: {file_extension}")
             
-            print("ðŸ” Starting OCR extraction...")
+            print("🔍 Starting OCR extraction...")
             
             if file_extension in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.webp']:
-                print("ðŸ–¼ï¸ Processing as image file...")
+                print("🖼️ Processing as image file...")
                 ocr_result = self.ocr_service.extract_text_from_image(file_path)
             elif file_extension == '.pdf':
-                print("ðŸ“‘ Processing as PDF file...")
+                print("📑 Processing as PDF file...")
                 ocr_result = self.ocr_service.extract_text_from_pdf(file_path)
             elif file_extension == '.txt':
-                print("ðŸ“ Processing as text file...")
+                print("📝 Processing as text file...")
                 with open(file_path, 'r', encoding='utf-8') as f:
                     text = f.read()
                 ocr_result = {
@@ -319,22 +319,22 @@ class DocumentAnalysisService:
                     'success': True
                 }
             else:
-                print("ðŸ–¼ï¸ Trying as image file...")
+                print("🖼️ Trying as image file...")
                 ocr_result = self.ocr_service.extract_text_from_image(file_path)
             
             # Check if OCR was successful
             if not ocr_result.get('success', False):
                 error_msg = ocr_result.get('error', 'OCR extraction failed')
-                print(f"âŒ OCR failed: {error_msg}")
+                print(f"❌ OCR failed: {error_msg}")
                 raise Exception(error_msg)
             
             text = ocr_result['text']
-            print(f"âœ… OCR completed. Extracted {len(text)} characters")
-            print(f"ðŸ“Š OCR Confidence: {ocr_result['confidence']}%")
+            print(f"✅ OCR completed. Extracted {len(text)} characters")
+            print(f"📊 OCR Confidence: {ocr_result['confidence']}%")
             
             # Preview first 200 characters
             preview = text[:200].replace('\n', ' ').strip()
-            print(f"ðŸ“ Text preview: {preview}...")
+            print(f"📝 Text preview: {preview}...")
             
             # Save extracted text to database
             extracted_text, created = ExtractedText.objects.update_or_create(
@@ -345,12 +345,12 @@ class DocumentAnalysisService:
                     'ocr_confidence': ocr_result['confidence']
                 }
             )
-            print(f"ðŸ’¾ Extracted text saved to database (ID: {extracted_text.id})")
+            print(f"💾 Extracted text saved to database (ID: {extracted_text.id})")
             
             # Analyze text for risks
-            print("ðŸ”¬ Analyzing text for risks...")
+            print("🔬 Analyzing text for risks...")
             risks = self.risk_analyzer.analyze_text(text)
-            print(f"âš ï¸ Found {len(risks)} potential risks")
+            print(f"⚠️ Found {len(risks)} potential risks")
             
             # Save risks to database
             risk_count = 0
@@ -367,17 +367,32 @@ class DocumentAnalysisService:
                     risk_count += 1
                     print(f"  - [{risk['risk_level']}] {risk['category']}: {risk['clause_text'][:50]}...")
                 except Exception as e:
-                    print(f"  âŒ Failed to save risk: {e}")
+                    print(f"  ❌ Failed to save risk: {e}")
             
             # Update document status to COMPLETED
             document.status = 'COMPLETED'
             document.save()
             
             print(f"\n{'='*60}")
-            print(f"âœ… SUCCESS! Document {document.id} processed")
-            print(f"ðŸ“Š Found {risk_count} risks")
-            print(f"ðŸ“ˆ OCR Confidence: {ocr_result['confidence']}%")
+            print(f"✅ SUCCESS! Document {document.id} processed")
+            print(f"📊 Found {risk_count} risks")
+            print(f"📈 OCR Confidence: {ocr_result['confidence']}%")
             print(f"{'='*60}\n")
+            
+            # ✅ Send success notification
+            try:
+                from notifications.services import NotificationService
+                NotificationService.notify_document_processed(document)
+                
+                # Check for critical risks
+                critical_risks = RiskAnalysis.objects.filter(
+                    document=document, 
+                    risk_level='CRITICAL'
+                )
+                for risk in critical_risks:
+                    NotificationService.notify_high_risk_detected(document, risk)
+            except Exception as notify_error:
+                print(f"⚠️ Notification error (non-critical): {notify_error}")
             
             return {
                 'success': True,
@@ -389,31 +404,38 @@ class DocumentAnalysisService:
         except Exception as e:
             error_msg = f"❌ Document processing failed: {str(e)}"
             print(error_msg)
-            logger.error(error_msg)
-            traceback.print_exc()  # ✅ This must be here
-    
-            document.status = 'FAILED'
-            document.save()
-    
-            return {
-            'success': False,
-            'error': str(e)
-            }
+            print(f"\n📋 FULL ERROR TRACEBACK:")
+            traceback.print_exc()
+            print(f"{'='*60}\n")
             
             # Update document status to FAILED
             try:
                 document.status = 'FAILED'
                 document.save()
-                print(f"âœ… Document status updated to FAILED")
+                print(f"✅ Document status updated to FAILED")
+                
+                # ✅ Send failure notification
+                try:
+                    from notifications.services import NotificationService
+                    NotificationService.create_notification(
+                        recipient=document.user,
+                        notification_type='FAILED',
+                        title=f"Document processing failed: {document.title}",
+                        message=f"Your document '{document.title}' could not be processed. Error: {str(e)[:100]}",
+                        content_object=document
+                    )
+                except:
+                    pass  # Notification failed, but document is already marked as failed
+                    
             except Exception as status_error:
-                print(f"âŒ Could not update status: {status_error}")
+                print(f"❌ Could not update status: {status_error}")
             
             return {
                 'success': False,
                 'error': str(e),
                 'document_id': str(document.id) if document else None
             }
-
+    
 
 class IntelligentDocumentProcessor:
     """Advanced document processor with AI features (requires PyTorch)"""

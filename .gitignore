@@ -4,6 +4,8 @@ backend/db.sqlite3
 backend/.env
 backend/venv/
 backend/media/
+backend/node_modules/
+backend/staticfiles/
 
 # Frontend (Vite/React)
 frontend/node_modules/
@@ -13,3 +15,6 @@ frontend/.env.local
 # System files
 .DS_Store
 Thumbs.db
+
+**/__pycache__/
+*.pyc
