@@ -45,31 +45,28 @@ class ExtractedText(models.Model):
     def __str__(self):
         return f"Text from {self.document.title}"
 
-class RiskAnalysis(models.Model):
-    RISK_CATEGORIES = [
-        ('FINANCIAL', 'Financial Risk'),
-        ('PRIVACY', 'Privacy Risk'),
-        ('LEGAL', 'Legal Risk'),
-        ('SUBSCRIPTION', 'Subscription Risk'),
-    ]
-    
-    RISK_LEVELS = [
-        ('LOW', 'Low'),
-        ('MEDIUM', 'Medium'),
-        ('HIGH', 'High'),
-        ('CRITICAL', 'Critical'),
-    ]
-    
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='risk_analyses')
-    category = models.CharField(max_length=20, choices=RISK_CATEGORIES)
-    risk_level = models.CharField(max_length=20, choices=RISK_LEVELS)
-    clause_text = models.TextField()
-    explanation = models.TextField()
-    page_number = models.IntegerField(default=1)
+
+class DocumentTag(models.Model):
+    """User-defined tags for documents"""
+    name = models.CharField(max_length=50)
+    color = models.CharField(max_length=7, default='#3b82f6')  # Hex color
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    documents = models.ManyToManyField(Document, related_name='tags', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        ordering = ['-risk_level', '-created_at']
+        unique_together = ['name', 'user']
     
     def __str__(self):
-        return f"{self.get_category_display()} - {self.get_risk_level_display()}"
+        return self.name
+
+class DocumentNote(models.Model):
+    """User notes on documents"""
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='notes')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Note on {self.document.title} by {self.user.username}"

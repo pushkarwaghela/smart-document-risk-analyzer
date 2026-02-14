@@ -1,17 +1,39 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import compression from 'vite-plugin-compression'
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    compression({
+      algorithm: 'gzip',
+      ext: '.gz'
+    })
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          charts: ['recharts', 'chart.js', 'react-chartjs-2'],
+          utils: ['axios', 'date-fns', 'jspdf', 'xlsx']
+        }
+      }
+    },
+    target: 'es2020',
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
+  },
   server: {
     port: 5173,
     open: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
-    },
-  },
+    hmr: {
+      overlay: true
+    }
+  }
 })

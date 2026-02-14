@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { uploadDocument } from '../store/slices/documentSlice'
 import axios from 'axios'
+import toast from 'react-hot-toast'
 import {
     CloudArrowUpIcon,
     DocumentTextIcon,
@@ -31,21 +32,23 @@ const DocumentUpload = () => {
     // Common state
     const [documentType, setDocumentType] = useState('OT')
     const [loading, setLoading] = useState(false)
-    const [uploadMethod, setUploadMethod] = useState('file') // 'file' or 'text'
+    const [uploadMethod, setUploadMethod] = useState('file')
     const [uploadProgress, setUploadProgress] = useState(0)
+
+    // ✅ ADD THIS: Flag to prevent double processing
+    const [processingStarted, setProcessingStarted] = useState(false)
 
     // File dropzone handlers
     const onDrop = useCallback((acceptedFiles) => {
         const selectedFile = acceptedFiles[0]
         setFile(selectedFile)
         setUploadMethod('file')
+        setProcessingStarted(false) // Reset flag on new file
 
-        // Auto-generate title
         const fileName = selectedFile.name
         const titleWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
         setTextTitle(titleWithoutExt)
 
-        // Create preview for images
         if (selectedFile.type.startsWith('image/')) {
             const reader = new FileReader()
             reader.onload = (e) => setPreview(e.target.value)
@@ -62,12 +65,11 @@ const DocumentUpload = () => {
             'application/pdf': ['.pdf'],
             'text/plain': ['.txt'],
         },
-        maxSize: 10485760, // 10MB
+        maxSize: 10485760,
         multiple: false,
         noClick: true,
     })
 
-    // Reset all states
     const resetForm = () => {
         setFile(null)
         setPreview(null)
@@ -75,47 +77,53 @@ const DocumentUpload = () => {
         setTextTitle('')
         setDocumentType('OT')
         setUploadProgress(0)
+        setProcessingStarted(false) // Reset flag
     }
 
-    // Handle text paste
     const handlePaste = (e) => {
         const pastedText = e.clipboardData?.getData('text') || e.target.value
         setTextContent(pastedText)
+        setProcessingStarted(false) // Reset flag
 
-        // Auto-generate title from first few words
         if (!textTitle) {
             const firstLine = pastedText.split('\n')[0].slice(0, 50)
             setTextTitle(firstLine || 'Pasted Document')
         }
     }
 
-    // Handle text area change
     const handleTextChange = (e) => {
         setTextContent(e.target.value)
+        setProcessingStarted(false) // Reset flag
     }
 
-    // Submit handler
     const handleSubmit = async (e) => {
         e.preventDefault()
 
+        // ✅ PREVENT DOUBLE SUBMISSION
+        if (processingStarted) {
+            console.log('⏳ Processing already started, ignoring duplicate call')
+            return
+        }
+
         if (uploadMethod === 'file' && !file) {
-            alert('Please select a file')
+            toast.error('Please select a file')
             return
         }
 
         if (uploadMethod === 'text' && !textContent.trim()) {
-            alert('Please paste some text')
+            toast.error('Please paste some text')
             return
         }
 
         setLoading(true)
+        setProcessingStarted(true) // ✅ Set flag to prevent double processing
+
         const formData = new FormData()
 
         if (uploadMethod === 'file') {
             formData.append('file', file)
             formData.append('title', textTitle || file.name)
         } else {
-            // Create a text file from pasted content
             const textBlob = new Blob([textContent], { type: 'text/plain' })
             const textFile = new File([textBlob], `${textTitle || 'pasted-document'}.txt`, { type: 'text/plain' })
             formData.append('file', textFile)
@@ -129,21 +137,38 @@ const DocumentUpload = () => {
             const result = await dispatch(uploadDocument(formData))
 
             if (!result.error && result.payload?.id) {
-                // Trigger processing automatically after upload
+                console.log('✅ Document uploaded successfully:', result.payload)
+                toast.success('Document uploaded successfully!')
+
                 const documentId = result.payload.id
+                console.log('📄 Document ID:', documentId)
 
-                // Get token from Redux store
                 const token = localStorage.getItem('token')
+                console.log('🔑 Token exists:', !!token)
 
-                // Call the process endpoint
-                await axios.post(
-                    `http://localhost:8000/api/documents/${documentId}/process/`,
-                    {},
-                    { headers: { Authorization: `Token ${token}` } }
-                )
+                if (token) {
+                    try {
+                        console.log('🚀 Triggering document processing...')
+                        const processResponse = await axios.post(
+                            `http://localhost:8000/api/documents/${documentId}/process/`,
+                            {},
+                            {
+                                headers: {
+                                    Authorization: `Token ${token}`,
+                                    'Content-Type': 'application/json'
+                                }
+                            }
+                        )
+                        console.log('✅ Processing triggered:', processResponse.data)
+                        toast.success('Document analysis started!')
 
-                toast.success('Document uploaded and analysis started!')
-                setTimeout(() => navigate(`/documents/${documentId}`), 1500)
+                        // Navigate after successful processing trigger
+                        setTimeout(() => navigate(`/documents/${documentId}`), 1500)
+                    } catch (processError) {
+                        console.error('❌ Process trigger failed:', processError)
+                        toast.error('Upload succeeded but analysis failed to start')
+                    }
+                }
             }
         } catch (error) {
             console.error('Upload error:', error)
@@ -212,7 +237,7 @@ const DocumentUpload = () => {
                         <div
                             {...getRootProps()}
                             onClick={open}
-                            className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer 
+                            className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer
                          transition-all duration-300 ${isDragActive
                                     ? 'border-primary-500 bg-primary-50/50 scale-105'
                                     : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50/50'
@@ -222,7 +247,6 @@ const DocumentUpload = () => {
 
                             {file ? (
                                 <div className="space-y-4">
-                                    {/* File Preview */}
                                     {preview ? (
                                         <div className="relative w-40 h-40 mx-auto">
                                             <img
@@ -237,7 +261,7 @@ const DocumentUpload = () => {
                                                     setFile(null)
                                                     setPreview(null)
                                                 }}
-                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full 
+                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full
                                  flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
                                             >
                                                 <XMarkIcon className="w-4 h-4" />
@@ -245,7 +269,7 @@ const DocumentUpload = () => {
                                         </div>
                                     ) : (
                                         <div className="relative inline-block">
-                                            <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100 
+                                            <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100
                                     rounded-2xl flex items-center justify-center">
                                                 <FileIcon className="w-12 h-12 text-primary-600" />
                                             </div>
@@ -256,7 +280,7 @@ const DocumentUpload = () => {
                                                     setFile(null)
                                                     setPreview(null)
                                                 }}
-                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full 
+                                                className="absolute -top-2 -right-2 w-8 h-8 bg-red-500 text-white rounded-full
                                  flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg"
                                             >
                                                 <XMarkIcon className="w-4 h-4" />
@@ -273,7 +297,7 @@ const DocumentUpload = () => {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100 
+                                    <div className="w-24 h-24 mx-auto bg-gradient-to-br from-primary-100 to-secondary-100
                                 rounded-3xl flex items-center justify-center animate-float">
                                         <CloudArrowUpIcon className="w-12 h-12 text-primary-600" />
                                     </div>
@@ -305,7 +329,7 @@ const DocumentUpload = () => {
                                     onChange={handleTextChange}
                                     onPaste={handlePaste}
                                     rows={12}
-                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl 
+                                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl
                            focus:ring-2 focus:ring-primary-500 focus:border-transparent
                            placeholder:text-gray-400 text-gray-700 font-mono text-sm
                            transition-all duration-200"
@@ -315,7 +339,7 @@ const DocumentUpload = () => {
                                     <button
                                         type="button"
                                         onClick={() => setTextContent('')}
-                                        className="absolute top-10 right-3 p-1 text-gray-400 hover:text-gray-600 
+                                        className="absolute top-10 right-3 p-1 text-gray-400 hover:text-gray-600
                              hover:bg-gray-100 rounded-lg transition-colors"
                                     >
                                         <XMarkIcon className="w-5 h-5" />
@@ -380,7 +404,6 @@ const DocumentUpload = () => {
                                 </div>
                             </div>
 
-                            {/* Character/Word Count for Text */}
                             {uploadMethod === 'text' && textContent && (
                                 <div className="flex items-center space-x-4 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2">
                                     <span>📝 Characters: {textContent.length.toLocaleString()}</span>
@@ -389,7 +412,6 @@ const DocumentUpload = () => {
                                 </div>
                             )}
 
-                            {/* Upload Progress */}
                             {loading && (
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-sm">
@@ -405,7 +427,6 @@ const DocumentUpload = () => {
                                 </div>
                             )}
 
-                            {/* Action Buttons */}
                             <div className="flex justify-end space-x-4 pt-4 border-t border-gray-100">
                                 <button
                                     type="button"
@@ -418,11 +439,11 @@ const DocumentUpload = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loading}
-                                    className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 
-                           text-white rounded-xl hover:from-primary-700 hover:to-primary-800 
-                           transition-all duration-200 font-medium shadow-lg 
-                           shadow-primary-500/20 hover:shadow-xl disabled:opacity-50 
+                                    disabled={loading || processingStarted}
+                                    className="px-6 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700
+                           text-white rounded-xl hover:from-primary-700 hover:to-primary-800
+                           transition-all duration-200 font-medium shadow-lg
+                           shadow-primary-500/20 hover:shadow-xl disabled:opacity-50
                            disabled:cursor-not-allowed flex items-center"
                                 >
                                     {loading ? (
@@ -443,7 +464,7 @@ const DocumentUpload = () => {
                 </form>
             </div>
 
-            {/* Features Grid */}
+            {/* Features Grid and Tips Section - keep as is */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6 border border-gray-100">
                     <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
@@ -476,7 +497,6 @@ const DocumentUpload = () => {
                 </div>
             </div>
 
-            {/* Tips Section */}
             <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-2xl p-6 border border-primary-100">
                 <h3 className="text-lg font-semibold text-primary-900 mb-3 flex items-center">
                     <PencilSquareIcon className="w-5 h-5 mr-2" />

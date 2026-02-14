@@ -4,22 +4,41 @@ import toast from 'react-hot-toast'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
+// Login action
 export const login = createAsyncThunk(
     'auth/login',
     async ({ username, password }, { rejectWithValue }) => {
         try {
-            const response = await axios.post(`${API_URL}/auth/login/`, { username, password })
-            localStorage.setItem('token', response.data.token)
-            localStorage.setItem('user', JSON.stringify(response.data.user))
+            console.log('🔑 Attempting login for:', username)
+
+            const response = await axios.post(`${API_URL}/auth/login/`, {
+                username,
+                password
+            })
+
+            console.log('✅ Login response received:', response.data)
+
+            // CRITICAL: Save to localStorage IMMEDIATELY
+            if (response.data.token) {
+                localStorage.setItem('token', response.data.token)
+                localStorage.setItem('user', JSON.stringify(response.data.user))
+                console.log('💾 Token saved to localStorage:', response.data.token)
+            } else {
+                console.error('❌ No token in response!')
+            }
+
             toast.success('Login successful!')
             return response.data
+
         } catch (error) {
+            console.error('❌ Login error:', error.response?.data || error.message)
             toast.error(error.response?.data?.non_field_errors?.[0] || 'Login failed')
             return rejectWithValue(error.response?.data)
         }
     }
 )
 
+// Register action
 export const register = createAsyncThunk(
     'auth/register',
     async (userData, { rejectWithValue }) => {
@@ -45,11 +64,15 @@ const authSlice = createSlice({
     },
     reducers: {
         logout: (state) => {
+            // Clear localStorage
             localStorage.removeItem('token')
             localStorage.removeItem('user')
+
+            // Clear state
             state.user = null
             state.token = null
             state.isAuthenticated = false
+
             toast.success('Logged out successfully')
         },
         clearError: (state) => {
@@ -58,6 +81,7 @@ const authSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
+            // Login cases
             .addCase(login.pending, (state) => {
                 state.loading = true
                 state.error = null
@@ -67,11 +91,16 @@ const authSlice = createSlice({
                 state.isAuthenticated = true
                 state.user = action.payload.user
                 state.token = action.payload.token
+
+                console.log('✅ Redux state updated with token:', action.payload.token)
             })
             .addCase(login.rejected, (state, action) => {
                 state.loading = false
                 state.error = action.payload
+                state.isAuthenticated = false
             })
+
+            // Register cases
             .addCase(register.pending, (state) => {
                 state.loading = true
                 state.error = null
