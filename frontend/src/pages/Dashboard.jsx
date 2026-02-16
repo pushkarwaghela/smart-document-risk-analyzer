@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { fetchDocuments } from '../store/slices/documentSlice'
 import { fetchStatistics } from '../store/slices/analysisSlice'
 import { useTheme } from '../context/ThemeContext'
+import AIPanel from '../components/AIPanel';
 import {
     DocumentTextIcon,
     ShieldExclamationIcon,
@@ -65,6 +66,27 @@ const Dashboard = () => {
     const highRisks = statistics?.high_risks || 0
     const mediumRisks = statistics?.medium_risks || 0
     const lowRisks = statistics?.low_risks || 0
+
+    const risks = {
+        length: totalRisks,
+        filter: (callback) => {
+            // Handle different filter scenarios
+            const filterStr = callback?.toString() || '';
+            if (filterStr.includes('CRITICAL')) {
+                return { length: criticalRisks };
+            }
+            if (filterStr.includes('HIGH')) {
+                return { length: highRisks };
+            }
+            if (filterStr.includes('MEDIUM')) {
+                return { length: mediumRisks };
+            }
+            if (filterStr.includes('LOW')) {
+                return { length: lowRisks };
+            }
+            return { length: totalRisks };
+        }
+    };
 
     const riskLevelData = [
         { name: 'Critical', value: criticalRisks, color: '#ef4444' },
@@ -200,7 +222,8 @@ const Dashboard = () => {
                         Welcome to your Smart Document Risk Analyzer. Upload documents to automatically detect and classify risks using advanced AI.
                     </p>
                 </motion.div>
-
+                {/* AI Insights Panel */}
+                <AIPanel documents={documents} risks={risks} />
                 {/* Floating Elements */}
                 <motion.div
                     animate={{
@@ -264,8 +287,8 @@ const Dashboard = () => {
                                         </motion.div>
                                     )}
                                     <span className={`text-xs font-medium ${stat.trend === 'up' ? 'text-green-600' :
-                                            stat.trend === 'down' ? 'text-red-600' :
-                                                'text-gray-500'
+                                        stat.trend === 'down' ? 'text-red-600' :
+                                            'text-gray-500'
                                         }`}>
                                         {stat.change}
                                     </span>
@@ -420,8 +443,8 @@ const Dashboard = () => {
                                         <motion.span
                                             whileHover={{ scale: 1.1 }}
                                             className={`badge ${doc.status === 'COMPLETED' ? 'badge-low' :
-                                                    doc.status === 'PROCESSING' ? 'badge-medium' :
-                                                        'bg-gray-500 text-white'
+                                                doc.status === 'PROCESSING' ? 'badge-medium' :
+                                                    'bg-gray-500 text-white'
                                                 }`}
                                         >
                                             {doc.status}

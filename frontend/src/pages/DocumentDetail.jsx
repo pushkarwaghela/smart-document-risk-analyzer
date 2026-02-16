@@ -15,16 +15,20 @@ import {
     BookmarkIcon,
     ChatBubbleLeftIcon,
     ShieldCheckIcon,
+    SparklesIcon,
 } from '@heroicons/react/24/outline'
-import { Document, Page, pdfjs } from 'react-pdf'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
 import { exportToPDF, exportToExcel, exportToCSV, exportToJSON } from '../services/exportService';
 import ExportDropdown from '../components/ExportDropdown';
+import DocumentChat from '../components/DocumentChat';
+import SimilarDocuments from '../components/SimilarDocuments';
+import ThemeCustomizer from '../components/ThemeCustomizer';
 import toast from 'react-hot-toast';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
-// Fix PDF worker
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+// ✅ Use CDN with version 3.11.174 (definitely exists)
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.296/pdf.worker.min.js`;
 
 const DocumentDetail = () => {
     const { id } = useParams()
@@ -41,6 +45,9 @@ const DocumentDetail = () => {
     const [showComments, setShowComments] = useState(false)
     const [comments, setComments] = useState([])
     const [newComment, setNewComment] = useState('')
+    const [aiSummary, setAiSummary] = useState(null)
+    const [showAiSummary, setShowAiSummary] = useState(false)
+    const [loadingAI, setLoadingAI] = useState(false)
     const { token } = useSelector((state) => state.auth)
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
@@ -89,6 +96,29 @@ const DocumentDetail = () => {
             setLoading(false)
         }
     }
+
+    const generateAISummary = async () => {
+        setLoadingAI(true);
+        try {
+            const response = await axios.get(
+                `${API_URL}/ai/summary/${id}/`,
+                { headers: { Authorization: `Token ${token}` } }
+            );
+
+            if (response.data.success) {
+                setAiSummary(response.data.summary);
+                setShowAiSummary(true);
+                toast.success('AI Summary generated!');
+            } else {
+                toast.error('Failed to generate summary');
+            }
+        } catch (error) {
+            console.error('AI Summary error:', error);
+            toast.error('Failed to generate summary');
+        } finally {
+            setLoadingAI(false);
+        }
+    };
 
     const addTag = () => {
         if (newTag.trim()) {
@@ -188,7 +218,7 @@ const DocumentDetail = () => {
     }
 
     return (
-        <div className="space-y-6 min-h-screen">
+        <div className="space-y-6 min-h-screen relative pb-24">
             {/* Header with fixed positioning context */}
             <div className="sticky top-0 z-40 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-xl mb-6">
                 <div className="flex items-center justify-between">
@@ -235,6 +265,32 @@ const DocumentDetail = () => {
                     </div>
                 </div>
             </div>
+
+            {/* AI Summary Section */}
+            <AnimatePresence>
+                {showAiSummary && aiSummary && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="card bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-purple-200 dark:border-purple-800 mb-6"
+                    >
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2">
+                                <SparklesIcon className="w-5 h-5 text-purple-600" />
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Summary</h3>
+                            </div>
+                            <button
+                                onClick={() => setShowAiSummary(false)}
+                                className="text-gray-500 hover:text-gray-700"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <p className="mt-3 text-gray-700 dark:text-gray-300 whitespace-pre-line">{aiSummary}</p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Comments Section - Collapsible */}
             <AnimatePresence>
@@ -352,59 +408,70 @@ const DocumentDetail = () => {
                     {/* Risk Clauses with PDF Preview */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Risk List - Scrollable */}
-                        <div className="lg:col-span-2 card dark:bg-gray-800 dark:border-gray-700">
-                            <div className="flex items-center space-x-2 mb-6 sticky top-0 bg-white dark:bg-gray-800 py-2 z-10">
-                                <ClipboardDocumentListIcon className="w-5 h-5 text-gray-400" />
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Detected Risk Clauses</h2>
-                                <span className="ml-auto px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-sm font-medium">
-                                    {risks.length} total
-                                </span>
-                            </div>
-
-                            {risks.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <ShieldCheckIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-500 dark:text-gray-400">No risks detected in this document</p>
+                        <div className="lg:col-span-2">
+                            {/* Remove the card class that has overflow:hidden */}
+                            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/50 p-6">
+                                <div className="flex items-center space-x-2 mb-4">
+                                    <ClipboardDocumentListIcon className="w-5 h-5 text-gray-400" />
+                                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Detected Risk Clauses</h2>
+                                    <span className="ml-auto px-3 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full text-sm font-medium">
+                                        {risks.length} total
+                                    </span>
                                 </div>
-                            ) : (
-                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {risks.map((risk) => {
-                                        const levelColors = getRiskLevelColor(risk.risk_level)
-                                        const categoryColors = getRiskCategoryColor(risk.category)
-                                        return (
-                                            <div
-                                                key={risk.id}
-                                                className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-xl transition-all duration-300 bg-white dark:bg-gray-800/50"
-                                            >
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${levelColors.bg} ${levelColors.text} shadow-lg`}>
-                                                            {risk.risk_level}
-                                                        </span>
-                                                        <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${categoryColors.bg} ${categoryColors.text} shadow-lg`}>
-                                                            {risk.category_display}
+
+                                {risks.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <ShieldCheckIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                        <p className="text-gray-500 dark:text-gray-400">No risks detected in this document</p>
+                                    </div>
+                                ) : (
+                                    <div
+                                        id="risk-scroll-container"
+                                        className="space-y-4 pr-2"
+                                        style={{
+                                            height: '400px',
+                                            overflowY: 'auto',  // Changed from 'scroll' to 'auto'
+                                            overflowX: 'hidden'
+                                        }}
+                                    >
+                                        {risks.map((risk) => {
+                                            const levelColors = getRiskLevelColor(risk.risk_level)
+                                            const categoryColors = getRiskCategoryColor(risk.category)
+                                            return (
+                                                <div
+                                                    key={risk.id}
+                                                    className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:shadow-xl transition-all duration-300 bg-white dark:bg-gray-800/50"
+                                                >
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${levelColors.bg} ${levelColors.text} shadow-lg`}>
+                                                                {risk.risk_level}
+                                                            </span>
+                                                            <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${categoryColors.bg} ${categoryColors.text} shadow-lg`}>
+                                                                {risk.category_display}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full flex-shrink-0">
+                                                            Page {risk.page_number}
                                                         </span>
                                                     </div>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full flex-shrink-0">
-                                                        Page {risk.page_number}
-                                                    </span>
+                                                    <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
+                                                        "{risk.clause_text}"
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                                        {risk.explanation}
+                                                    </p>
                                                 </div>
-                                                <p className="text-gray-700 dark:text-gray-300 text-sm mb-2 leading-relaxed">
-                                                    "{risk.clause_text}"
-                                                </p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                                    {risk.explanation}
-                                                </p>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* PDF Preview - Sticky */}
                         <div className="lg:col-span-1">
-                            <div className="card dark:bg-gray-800 dark:border-gray-700 sticky top-24">
+                            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/50 p-6 sticky top-24">
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
                                     <DocumentTextIcon className="w-5 h-5 mr-2 text-primary-500" />
                                     Document Preview
@@ -455,6 +522,34 @@ const DocumentDetail = () => {
                     </div>
                 </>
             )}
+
+            {/* Floating Action Buttons - Perfectly Positioned */}
+            <div className="fixed bottom-6 right-6 flex flex-col items-end space-y-3 z-[100]">
+                {/* AI Summary Button */}
+                <button
+                    onClick={generateAISummary}
+                    disabled={loadingAI}
+                    className="w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shadow-xl hover:shadow-2xl transition-all flex items-center justify-center group disabled:opacity-50 hover:scale-110"
+                    title="Generate AI Summary"
+                >
+                    {loadingAI ? (
+                        <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" />
+                    ) : (
+                        <SparklesIcon className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+                    )}
+                </button>
+
+                {/* Theme Customizer */}
+                <ThemeCustomizer />
+            </div>
+
+            {/* Similar Documents - Positioned at bottom */}
+            <div className="mt-12 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <SimilarDocuments documentId={id} />
+            </div>
+
+            {/* AI Chat Button - Separate at bottom right */}
+            <DocumentChat documentId={id} documentTitle={document?.title} />
         </div>
     )
 }

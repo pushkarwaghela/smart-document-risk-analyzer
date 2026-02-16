@@ -4,14 +4,27 @@ import toast from 'react-hot-toast'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
+// Add a simple throttle mechanism
+let lastFetchTime = 0;
+const THROTTLE_TIME = 10000; // 10 seconds
+
 export const fetchNotifications = createAsyncThunk(
     'notifications/fetchAll',
     async (_, { getState, rejectWithValue }) => {
+        // Throttle multiple rapid calls
+        const now = Date.now();
+        if (now - lastFetchTime < THROTTLE_TIME) {
+            // Return cached data from state instead of making API call
+            const state = getState();
+            return state.notifications.items;
+        }
+
         try {
             const { token } = getState().auth
             const response = await axios.get(`${API_URL}/notifications/`, {
                 headers: { Authorization: `Token ${token}` }
             })
+            lastFetchTime = now;
             return response.data
         } catch (error) {
             return rejectWithValue(error.response?.data)
@@ -60,6 +73,7 @@ const notificationSlice = createSlice({
         unreadCount: 0,
         loading: false,
         error: null,
+        lastUpdated: null,
     },
     reducers: {
         addNotification: (state, action) => {
@@ -82,6 +96,7 @@ const notificationSlice = createSlice({
                 state.loading = false
                 state.items = action.payload
                 state.unreadCount = action.payload.filter(n => !n.is_read).length
+                state.lastUpdated = Date.now()
             })
             .addCase(fetchNotifications.rejected, (state, action) => {
                 state.loading = false

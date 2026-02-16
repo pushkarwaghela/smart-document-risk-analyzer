@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { logout } from '../../store/slices/authSlice'
 import { useTheme } from '../../context/ThemeContext'
 import NotificationBell from '../NotificationBell'
-
+import ParticleBackground from "../ParticleBackground";
 import {
     HomeIcon,
     DocumentArrowUpIcon,
@@ -85,6 +85,8 @@ const Layout = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+            <ParticleBackground />
+
             {/* Mobile Header - Only visible on mobile */}
             <div className="lg:hidden fixed top-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700 z-30 px-4 py-3 shadow-lg">
                 <div className="flex items-center justify-between">

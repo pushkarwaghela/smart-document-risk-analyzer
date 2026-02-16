@@ -20,6 +20,8 @@ import RiskReport from './pages/RiskReport'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
 import NotificationsPage from './pages/NotificationsPage'
+import KeyboardShortcuts from './components/KeyboardShortcuts';
+import ThemeCustomizer from './components/ThemeCustomizer';
 
 // Animated Routes Component
 const AnimatedRoutes = () => {
@@ -79,6 +81,8 @@ function App() {
             },
           }}
         />
+        <KeyboardShortcuts />
+        <ThemeCustomizer />
         <AnimatedRoutes />
       </Router>
     </ThemeProvider>

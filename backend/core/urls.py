@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/documents/', include('documents.urls')),
     path('api/analyze/', include('risk_analyzer.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/ai/', include('risk_analyzer.urls_ai')),  # Add this line
 ]
 
 if settings.DEBUG:

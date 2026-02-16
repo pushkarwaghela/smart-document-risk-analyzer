@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()  # This MUST be here!
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -112,3 +116,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'your-email@gmail.com'
 EMAIL_HOST_PASSWORD = 'your-app-password'  # Use App Password for Gmail
 DEFAULT_FROM_EMAIL = 'Risk Analyzer <noreply@riskanalyzer.com>'
+
+import os
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY','')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')

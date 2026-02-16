@@ -18,16 +18,63 @@ const NotificationBell = ({ position = 'right' }) => {
     const [openUpward, setOpenUpward] = useState(false)
     const buttonRef = useRef(null)
     const dropdownRef = useRef(null)
+    const pollingIntervalRef = useRef(null)
 
+    // Initial fetch
     useEffect(() => {
         dispatch(fetchNotifications())
-
-        const interval = setInterval(() => {
-            dispatch(fetchNotifications())
-        }, 30000)
-
-        return () => clearInterval(interval)
     }, [dispatch])
+
+    // Set up polling only when component is visible
+    useEffect(() => {
+        // Start polling when component mounts
+        startPolling();
+
+        // Cleanup on unmount
+        return () => {
+            stopPolling();
+        };
+    }, []);
+
+    const startPolling = () => {
+        // Clear any existing interval
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+
+        // Set new interval - increased to 60 seconds to reduce calls
+        pollingIntervalRef.current = setInterval(() => {
+            // Only fetch if document is visible (user is on the tab)
+            if (!document.hidden) {
+                dispatch(fetchNotifications());
+            }
+        }, 60000); // 60 seconds instead of 30
+    };
+
+    const stopPolling = () => {
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+        }
+    };
+
+    // Handle page visibility change
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                stopPolling();
+            } else {
+                // Fetch immediately when user returns
+                dispatch(fetchNotifications());
+                startPolling();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -40,14 +87,13 @@ const NotificationBell = ({ position = 'right' }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    // Check if dropdown should open upward when it's about to open
+    // Check if dropdown should open upward
     useEffect(() => {
         if (isOpen && buttonRef.current) {
             const buttonRect = buttonRef.current.getBoundingClientRect()
             const viewportHeight = window.innerHeight
-            const dropdownHeight = 500 // Approximate max height of dropdown
+            const dropdownHeight = 500
 
-            // Check if there's enough space below
             const spaceBelow = viewportHeight - buttonRect.bottom
             const shouldOpenUpward = spaceBelow < dropdownHeight && buttonRect.top > dropdownHeight
 
@@ -79,7 +125,6 @@ const NotificationBell = ({ position = 'right' }) => {
         dispatch(markAllAsRead())
     }
 
-    // Determine dropdown horizontal position classes
     const getHorizontalPosition = () => {
         switch (position) {
             case 'left':
@@ -93,7 +138,6 @@ const NotificationBell = ({ position = 'right' }) => {
         }
     }
 
-    // Determine vertical position classes
     const getVerticalPosition = () => {
         return openUpward ? 'bottom-full mb-2' : 'top-full mt-2'
     }
