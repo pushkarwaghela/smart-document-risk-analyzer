@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     DocumentArrowDownIcon,
     TableCellsIcon,
@@ -6,10 +6,22 @@ import {
     DocumentTextIcon,
     ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
 
 const ExportDropdown = ({ onExport }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const exportOptions = [
         {
@@ -47,10 +59,11 @@ const ExportDropdown = ({ onExport }) => {
     ];
 
     return (
-        <div className="relative">
+        <div className="relative inline-block" ref={dropdownRef} style={{ zIndex: 9999 }}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="btn-secondary flex items-center space-x-2"
+                className="btn-secondary flex items-center space-x-2 relative"
+                type="button"
             >
                 <ArrowDownTrayIcon className="w-5 h-5" />
                 <span>Export</span>
@@ -58,17 +71,22 @@ const ExportDropdown = ({ onExport }) => {
 
             {isOpen && (
                 <>
-                    {/* Backdrop to close on click outside */}
+                    {/* Invisible backdrop to capture clicks */}
                     <div
-                        className="fixed inset-0 z-40"
+                        className="fixed inset-0"
+                        style={{ zIndex: 9998 }}
                         onClick={() => setIsOpen(false)}
                     />
 
-                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                    {/* Dropdown menu */}
+                    <div
+                        className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+                        style={{ zIndex: 10000 }}
+                    >
                         <div className="p-3 border-b border-gray-200 dark:border-gray-700">
                             <h3 className="font-semibold text-gray-900 dark:text-white">Export Options</h3>
                         </div>
-                        <div className="p-2">
+                        <div className="p-2 max-h-96 overflow-y-auto">
                             {exportOptions.map((option) => (
                                 <button
                                     key={option.format}
@@ -77,13 +95,14 @@ const ExportDropdown = ({ onExport }) => {
                                         setIsOpen(false);
                                     }}
                                     className="w-full flex items-start p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
+                                    type="button"
                                 >
                                     <div className={`w-8 h-8 ${option.bgColor} rounded-lg flex items-center justify-center mr-3 flex-shrink-0`}>
                                         <option.icon className={`w-4 h-4 ${option.color}`} />
                                     </div>
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium text-gray-900 dark:text-white">{option.name}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{option.description}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{option.description}</p>
                                     </div>
                                 </button>
                             ))}
