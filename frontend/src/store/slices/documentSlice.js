@@ -29,42 +29,61 @@ export const fetchDocuments = createAsyncThunk(
     async (_, { getState, rejectWithValue }) => {
         try {
             const { token } = getState().auth
+            // Fetch documents list
             const response = await axios.get(`${API_URL}/documents/list/`, {
                 headers: { Authorization: `Token ${token}` },
             })
-            return response.data
+
+            // For each document, fetch its risk count
+            const documentsWithRiskCount = await Promise.all(
+                response.data.map(async (doc) => {
+                    try {
+                        // Try to fetch risks for this document
+                        const risksResponse = await axios.get(
+                            `${API_URL}/analyze/documents/${doc.id}/risks/`,
+                            { headers: { Authorization: `Token ${token}` } }
+                        )
+                        return {
+                            ...doc,
+                            risk_count: risksResponse.data.length || 0
+                        }
+                    } catch (error) {
+                        // If fails (maybe document not processed yet), set risk_count to 0
+                        return {
+                            ...doc,
+                            risk_count: 0
+                        }
+                    }
+                })
+            )
+
+            return documentsWithRiskCount
         } catch (error) {
+            console.error('Fetch documents error:', error)
             return rejectWithValue(error.response?.data)
         }
     }
 )
 
-// ✅ FIXED: Delete a single document - WITH /delete/ at the end
 export const deleteDocument = createAsyncThunk(
     'documents/delete',
     async (documentId, { getState, rejectWithValue }) => {
         try {
             const { token } = getState().auth
-            console.log('🗑️ Deleting document:', documentId)
-            console.log('🔑 Token:', token)
-            console.log('🌐 URL:', `${API_URL}/documents/${documentId}/delete/`)
-
             await axios.delete(
-                `${API_URL}/documents/${documentId}/delete/`,  // ✅ ADDED /delete/
+                `${API_URL}/documents/${documentId}/delete/`,
                 { headers: { Authorization: `Token ${token}` } }
             )
-
             toast.success('Document deleted successfully!')
             return documentId
         } catch (error) {
-            console.error('❌ Delete error:', error.response?.data || error.message)
-            toast.error('Failed to delete document')
+            console.error('Delete error:', error.response?.data || error.message)
+            toast.error(error.response?.data?.error || 'Failed to delete document')
             return rejectWithValue(error.response?.data)
         }
     }
 )
 
-// ✅ FIXED: Bulk delete documents - WITH /delete/ at the end
 export const bulkDeleteDocuments = createAsyncThunk(
     'documents/bulkDelete',
     async (documentIds, { getState, rejectWithValue }) => {
@@ -72,7 +91,7 @@ export const bulkDeleteDocuments = createAsyncThunk(
             const { token } = getState().auth
             await Promise.all(documentIds.map(id =>
                 axios.delete(
-                    `${API_URL}/documents/${id}/delete/`,  // ✅ ADDED /delete/
+                    `${API_URL}/documents/${id}/delete/`,
                     { headers: { Authorization: `Token ${token}` } }
                 )
             ))
@@ -105,7 +124,10 @@ const documentSlice = createSlice({
             })
             .addCase(uploadDocument.fulfilled, (state, action) => {
                 state.loading = false
-                state.documents.unshift(action.payload)
+                state.documents.unshift({
+                    ...action.payload,
+                    risk_count: 0 // New documents start with 0 risks
+                })
             })
             .addCase(uploadDocument.rejected, (state) => {
                 state.loading = false
@@ -117,8 +139,9 @@ const documentSlice = createSlice({
                 state.loading = false
                 state.documents = action.payload
             })
-            .addCase(fetchDocuments.rejected, (state) => {
+            .addCase(fetchDocuments.rejected, (state, action) => {
                 state.loading = false
+                state.error = action.payload
             })
             .addCase(deleteDocument.fulfilled, (state, action) => {
                 state.documents = state.documents.filter(doc => doc.id !== action.payload)

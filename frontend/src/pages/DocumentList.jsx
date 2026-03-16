@@ -23,9 +23,8 @@ import toast from 'react-hot-toast'
 
 const DocumentList = () => {
     const dispatch = useDispatch()
-    const { documents, loading } = useSelector((state) => state.documents)
+    const { documents = [], loading } = useSelector((state) => state.documents)
     const { token } = useSelector((state) => state.auth)
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
     const [searchQuery, setSearchQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState([])
@@ -37,38 +36,49 @@ const DocumentList = () => {
     const [filteredDocs, setFilteredDocs] = useState([])
     const [selectedDocs, setSelectedDocs] = useState([])
     const [viewMode, setViewMode] = useState('table')
+    const [exporting, setExporting] = useState(false)
 
-    const fuse = new Fuse(documents || [], {
-        keys: ['title', 'document_type'],
-        threshold: 0.3,
-    })
+    // Initialize Fuse only when documents exist
+    const fuse = React.useMemo(() => {
+        return new Fuse(documents || [], {
+            keys: ['title', 'document_type'],
+            threshold: 0.3,
+        })
+    }, [documents])
 
     useEffect(() => {
         dispatch(fetchDocuments())
     }, [dispatch])
 
     useEffect(() => {
-        if (!documents) return
+        if (!documents || documents.length === 0) {
+            setFilteredDocs([])
+            return
+        }
 
         let filtered = [...documents]
 
-        if (searchQuery) {
+        // Apply search filter
+        if (searchQuery && searchQuery.trim() !== '') {
             const results = fuse.search(searchQuery)
             filtered = results.map(r => r.item)
         }
 
+        // Apply status filter
         if (statusFilter.length > 0) {
             filtered = filtered.filter(doc =>
                 statusFilter.some(f => f.value === doc.status)
             )
         }
 
+        // Apply type filter
         if (typeFilter.length > 0) {
             filtered = filtered.filter(doc =>
                 typeFilter.some(f => f.value === doc.document_type)
             )
         }
 
+        // Apply date filter
         if (startDate && endDate) {
             filtered = filtered.filter(doc => {
                 const docDate = new Date(doc.uploaded_at)
@@ -76,13 +86,14 @@ const DocumentList = () => {
             })
         }
 
+        // Apply sorting
         filtered.sort((a, b) => {
             let aVal = a[sortField]
             let bVal = b[sortField]
 
             if (sortField === 'uploaded_at') {
-                aVal = new Date(aVal)
-                bVal = new Date(bVal)
+                aVal = new Date(aVal).getTime()
+                bVal = new Date(bVal).getTime()
             }
 
             if (sortDirection === 'asc') {
@@ -93,7 +104,11 @@ const DocumentList = () => {
         })
 
         setFilteredDocs(filtered)
-    }, [documents, searchQuery, statusFilter, typeFilter, dateRange, sortField, sortDirection])
+
+        // Clear selected docs that are no longer in filtered list
+        setSelectedDocs(prev => prev.filter(id => filtered.some(doc => doc.id === id)))
+
+    }, [documents, searchQuery, statusFilter, typeFilter, startDate, endDate, sortField, sortDirection, fuse])
 
     const statusOptions = [
         { value: 'PENDING', label: 'Pending' },
@@ -153,37 +168,74 @@ const DocumentList = () => {
     }
 
     const handleSelectDoc = (docId) => {
-        if (selectedDocs.includes(docId)) {
-            setSelectedDocs(selectedDocs.filter(id => id !== docId))
-        } else {
-            setSelectedDocs([...selectedDocs, docId])
-        }
+        setSelectedDocs(prev => {
+            if (prev.includes(docId)) {
+                return prev.filter(id => id !== docId)
+            } else {
+                return [...prev, docId]
+            }
+        })
     }
 
     const handleDeleteSingle = (docId) => {
         if (window.confirm('Are you sure you want to delete this document?')) {
-            dispatch(deleteDocument(docId))
+            dispatch(deleteDocument(docId)).then(() => {
+                // Remove from selected docs after delete
+                setSelectedDocs(prev => prev.filter(id => id !== docId))
+            })
         }
     }
 
     const handleBulkDelete = () => {
         if (selectedDocs.length === 0) return
         if (window.confirm(`Are you sure you want to delete ${selectedDocs.length} documents?`)) {
-            dispatch(bulkDeleteDocuments(selectedDocs))
-            setSelectedDocs([])
+            dispatch(bulkDeleteDocuments(selectedDocs)).then(() => {
+                setSelectedDocs([])
+            })
         }
     }
 
-    const handleExport = () => {
-        const data = filteredDocs.map(doc => ({
-            'Title': doc.title,
-            'Type': doc.document_type,
-            'Status': doc.status,
-            'Uploaded': new Date(doc.uploaded_at).toLocaleDateString(),
-            'Risk Count': doc.risk_count || 0
-        }))
-        exportToCSV(data, 'documents_export')
-        toast.success('Export completed!')
+    const handleShare = async (doc) => {
+        const shareData = {
+            title: doc.title,
+            text: `Check out this document: ${doc.title}`,
+            url: `${window.location.origin}/documents/${doc.id}`,
+        }
+
+        if (navigator.share && window.innerWidth <= 768) {
+            try {
+                await navigator.share(shareData)
+                toast.success('Shared successfully!')
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    await navigator.clipboard.writeText(shareData.url)
+                    toast.success('Link copied to clipboard!')
+                }
+            }
+        } else {
+            await navigator.clipboard.writeText(shareData.url)
+            toast.success('Link copied to clipboard!')
+        }
+    }
+
+    const handleExport = async () => {
+        setExporting(true)
+        try {
+            const data = filteredDocs.map(doc => ({
+                'Title': doc.title,
+                'Type': doc.document_type,
+                'Status': doc.status,
+                'Uploaded': new Date(doc.uploaded_at).toLocaleDateString(),
+                'Risk Count': doc.risk_count || 0
+            }))
+            await exportToCSV(data, 'documents_export')
+            toast.success('Export completed!')
+        } catch (error) {
+            console.error('Export error:', error)
+            toast.error('Export failed!')
+        } finally {
+            setExporting(false)
+        }
     }
 
     const containerVariants = {
@@ -202,6 +254,18 @@ const DocumentList = () => {
             y: 0,
             opacity: 1
         }
+    }
+
+    // Show loading state
+    if (loading && documents.length === 0) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">Loading documents...</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -237,8 +301,8 @@ const DocumentList = () => {
                         <button
                             onClick={() => setViewMode('table')}
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'table'
-                                    ? 'bg-primary-600 text-white shadow-md'
-                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                ? 'bg-primary-600 text-white shadow-md'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                         >
                             Table
@@ -246,23 +310,24 @@ const DocumentList = () => {
                         <button
                             onClick={() => setViewMode('grid')}
                             className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'grid'
-                                    ? 'bg-primary-600 text-white shadow-md'
-                                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                ? 'bg-primary-600 text-white shadow-md'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                         >
                             Grid
                         </button>
                     </div>
 
-                    {/* Export Button - NOW WORKING */}
+                    {/* Export Button */}
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handleExport}
-                        className="btn-secondary flex items-center"
+                        disabled={exporting || filteredDocs.length === 0}
+                        className="btn-secondary flex items-center disabled:opacity-50"
                     >
-                        <CloudArrowDownIcon className="w-5 h-5 mr-2" />
-                        Export
+                        <CloudArrowDownIcon className={`w-5 h-5 mr-2 ${exporting ? 'animate-bounce' : ''}`} />
+                        {exporting ? 'Exporting...' : 'Export'}
                     </motion.button>
 
                     {/* Upload Button */}
@@ -278,7 +343,7 @@ const DocumentList = () => {
                 </div>
             </div>
 
-            {/* Bulk Actions - NOW WORKING */}
+            {/* Bulk Actions */}
             <AnimatePresence>
                 {selectedDocs.length > 0 && (
                     <motion.div
@@ -389,172 +454,160 @@ const DocumentList = () => {
             </motion.div>
 
             {/* Results Count */}
-            <motion.div
-                variants={itemVariants}
-                className="flex justify-between items-center"
-            >
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Showing <span className="font-semibold text-primary-600 dark:text-primary-400">{filteredDocs.length}</span> of{' '}
-                    <span className="font-semibold">{documents?.length || 0}</span> documents
-                </p>
+            {documents.length > 0 && (
+                <motion.div
+                    variants={itemVariants}
+                    className="flex justify-between items-center"
+                >
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Showing <span className="font-semibold text-primary-600 dark:text-primary-400">{filteredDocs.length}</span> of{' '}
+                        <span className="font-semibold">{documents?.length || 0}</span> documents
+                    </p>
 
-                {/* Select All Checkbox */}
-                {filteredDocs.length > 0 && (
-                    <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                        <input
-                            type="checkbox"
-                            checked={selectedDocs.length === filteredDocs.length}
-                            onChange={handleSelectAll}
-                            className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                        />
-                        <span>Select All</span>
-                    </label>
-                )}
-            </motion.div>
+                    {/* Select All Checkbox */}
+                    {filteredDocs.length > 0 && (
+                        <label className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                            <input
+                                type="checkbox"
+                                checked={selectedDocs.length === filteredDocs.length}
+                                onChange={handleSelectAll}
+                                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                            />
+                            <span>Select All</span>
+                        </label>
+                    )}
+                </motion.div>
+            )}
 
             {/* Documents Display */}
-            {viewMode === 'table' ? (
+            {documents.length === 0 ? (
+                <motion.div
+                    variants={itemVariants}
+                    className="card text-center py-12"
+                >
+                    <DocumentTextIcon className="w-16 h-16 mx-auto text-gray-400" />
+                    <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No documents found</h3>
+                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        Get started by uploading your first document
+                    </p>
+                    <Link to="/upload" className="btn-primary mt-6 inline-block">
+                        Upload Document
+                    </Link>
+                </motion.div>
+            ) : viewMode === 'table' ? (
                 // Table View
                 <motion.div
                     variants={itemVariants}
                     className="card dark:bg-gray-800 dark:border-gray-700 overflow-hidden"
                 >
-                    {loading ? (
-                        <div className="space-y-4 p-6">
-                            {[1, 2, 3, 4].map((i) => (
-                                <motion.div
-                                    key={i}
-                                    animate={{ opacity: [0.5, 1, 0.5] }}
-                                    transition={{ duration: 1.5, repeat: Infinity }}
-                                    className="h-16 bg-gray-200 dark:bg-gray-700 rounded skeleton"
-                                />
-                            ))}
-                        </div>
-                    ) : filteredDocs.length > 0 ? (
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-900">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedDocs.length === filteredDocs.length}
-                                                onChange={handleSelectAll}
-                                                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                                            />
-                                        </th>
-                                        <th
-                                            onClick={() => handleSort('title')}
-                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                    <th className="px-6 py-3 text-left">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedDocs.length === filteredDocs.length && filteredDocs.length > 0}
+                                            onChange={handleSelectAll}
+                                            className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                        />
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('title')}
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                    >
+                                        Document {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('document_type')}
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                    >
+                                        Type {sortField === 'document_type' && (sortDirection === 'asc' ? '↑' : '↓')}
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('uploaded_at')}
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
+                                    >
+                                        Uploaded {sortField === 'uploaded_at' && (sortDirection === 'asc' ? '↑' : '↓')}
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <AnimatePresence>
+                                    {filteredDocs.map((doc) => (
+                                        <motion.tr
+                                            key={doc.id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                                         >
-                                            Document {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
-                                        </th>
-                                        <th
-                                            onClick={() => handleSort('document_type')}
-                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
-                                        >
-                                            Type {sortField === 'document_type' && (sortDirection === 'asc' ? '↑' : '↓')}
-                                        </th>
-                                        <th
-                                            onClick={() => handleSort('uploaded_at')}
-                                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:text-gray-700 dark:hover:text-gray-200"
-                                        >
-                                            Uploaded {sortField === 'uploaded_at' && (sortDirection === 'asc' ? '↑' : '↓')}
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    <AnimatePresence>
-                                        {filteredDocs.map((doc) => (
-                                            <motion.tr
-                                                key={doc.id}
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                                            >
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedDocs.includes(doc.id)}
-                                                        onChange={() => handleSelectDoc(doc.id)}
-                                                        className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
-                                                    />
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <DocumentTextIcon className="w-5 h-5 text-gray-400 mr-3" />
-                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                            {doc.title}
-                                                        </div>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDocs.includes(doc.id)}
+                                                    onChange={() => handleSelectDoc(doc.id)}
+                                                    className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                                />
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <DocumentTextIcon className="w-5 h-5 text-gray-400 mr-3" />
+                                                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                                        {doc.title}
                                                     </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full">
-                                                        {doc.document_type}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="px-3 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full">
+                                                    {doc.document_type}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                                {new Date(doc.uploaded_at).toLocaleDateString()}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    {getStatusIcon(doc.status)}
+                                                    <span className={`ml-2 px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(doc.status)}`}>
+                                                        {doc.status}
                                                     </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                    {new Date(doc.uploaded_at).toLocaleDateString()}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        {getStatusIcon(doc.status)}
-                                                        <span className={`ml-2 px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(doc.status)}`}>
-                                                            {doc.status}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                    <div className="flex items-center space-x-2">
-                                                        <Link
-                                                            to={`/documents/${doc.id}`}
-                                                            className="p-2 text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all"
-                                                        >
-                                                            <EyeIcon className="w-5 h-5" />
-                                                        </Link>
-                                                        <button
-                                                            onClick={() => toast.success('Shared!')}
-                                                            className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
-                                                        >
-                                                            <ShareIcon className="w-5 h-5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteSingle(doc.id)}
-                                                            className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                                                        >
-                                                            <TrashIcon className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        ))}
-                                    </AnimatePresence>
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <motion.div
-                            initial={{ scale: 0.9 }}
-                            animate={{ scale: 1 }}
-                            className="text-center py-12"
-                        >
-                            <DocumentTextIcon className="w-16 h-16 mx-auto text-gray-400" />
-                            <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No documents found</h3>
-                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                {searchQuery ? 'Try adjusting your search filters' : 'Get started by uploading your first document'}
-                            </p>
-                            <Link to="/upload" className="btn-primary mt-6 inline-block">
-                                Upload Document
-                            </Link>
-                        </motion.div>
-                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <div className="flex items-center space-x-2">
+                                                    <Link
+                                                        to={`/documents/${doc.id}`}
+                                                        className="p-2 text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-all"
+                                                    >
+                                                        <EyeIcon className="w-5 h-5" />
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => handleShare(doc)}
+                                                        className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
+                                                    >
+                                                        <ShareIcon className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteSingle(doc.id)}
+                                                        className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                    >
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </motion.tr>
+                                    ))}
+                                </AnimatePresence>
+                            </tbody>
+                        </table>
+                    </div>
                 </motion.div>
             ) : (
                 // Grid View
@@ -571,7 +624,7 @@ const DocumentList = () => {
                                 whileHover={{ y: -5, scale: 1.02 }}
                                 className="card dark:bg-gray-800 dark:border-gray-700 relative overflow-hidden group"
                             >
-                                <div className="absolute top-0 right-0 p-4">
+                                <div className="absolute top-0 right-0 p-4 z-10">
                                     <input
                                         type="checkbox"
                                         checked={selectedDocs.includes(doc.id)}
@@ -616,7 +669,7 @@ const DocumentList = () => {
                                         <EyeIcon className="w-5 h-5" />
                                     </Link>
                                     <button
-                                        onClick={() => toast.success('Shared!')}
+                                        onClick={() => handleShare(doc)}
                                         className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
                                     >
                                         <ShareIcon className="w-5 h-5" />
