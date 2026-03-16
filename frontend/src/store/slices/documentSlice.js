@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
+﻿import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
@@ -39,6 +39,52 @@ export const fetchDocuments = createAsyncThunk(
     }
 )
 
+// ✅ FIXED: Delete a single document - WITH /delete/ at the end
+export const deleteDocument = createAsyncThunk(
+    'documents/delete',
+    async (documentId, { getState, rejectWithValue }) => {
+        try {
+            const { token } = getState().auth
+            console.log('🗑️ Deleting document:', documentId)
+            console.log('🔑 Token:', token)
+            console.log('🌐 URL:', `${API_URL}/documents/${documentId}/delete/`)
+
+            await axios.delete(
+                `${API_URL}/documents/${documentId}/delete/`,  // ✅ ADDED /delete/
+                { headers: { Authorization: `Token ${token}` } }
+            )
+
+            toast.success('Document deleted successfully!')
+            return documentId
+        } catch (error) {
+            console.error('❌ Delete error:', error.response?.data || error.message)
+            toast.error('Failed to delete document')
+            return rejectWithValue(error.response?.data)
+        }
+    }
+)
+
+// ✅ FIXED: Bulk delete documents - WITH /delete/ at the end
+export const bulkDeleteDocuments = createAsyncThunk(
+    'documents/bulkDelete',
+    async (documentIds, { getState, rejectWithValue }) => {
+        try {
+            const { token } = getState().auth
+            await Promise.all(documentIds.map(id =>
+                axios.delete(
+                    `${API_URL}/documents/${id}/delete/`,  // ✅ ADDED /delete/
+                    { headers: { Authorization: `Token ${token}` } }
+                )
+            ))
+            toast.success(`${documentIds.length} documents deleted successfully!`)
+            return documentIds
+        } catch (error) {
+            toast.error('Failed to delete documents')
+            return rejectWithValue(error.response?.data)
+        }
+    }
+)
+
 const documentSlice = createSlice({
     name: 'documents',
     initialState: {
@@ -73,6 +119,12 @@ const documentSlice = createSlice({
             })
             .addCase(fetchDocuments.rejected, (state) => {
                 state.loading = false
+            })
+            .addCase(deleteDocument.fulfilled, (state, action) => {
+                state.documents = state.documents.filter(doc => doc.id !== action.payload)
+            })
+            .addCase(bulkDeleteDocuments.fulfilled, (state, action) => {
+                state.documents = state.documents.filter(doc => !action.payload.includes(doc.id))
             })
     },
 })

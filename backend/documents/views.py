@@ -1,9 +1,9 @@
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
-from django.http import JsonResponse
-from .models import Document
+from .models import Document, ExtractedText
 from .serializers import DocumentSerializer, DocumentDetailSerializer
 import threading
 import logging
@@ -34,98 +34,76 @@ class DocumentDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
 
+# ✅ WORKING DELETE VIEW
+class DocumentDeleteView(APIView):
+    """Delete a document"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def delete(self, request, pk):
+        try:
+            # Log the request
+            logger.info(f"🗑️ Delete request for document {pk} by user {request.user.id}")
+            
+            # Get the document
+            document = get_object_or_404(Document, pk=pk, user=request.user)
+            
+            # Store file path for logging
+            file_path = document.file.path if document.file else None
+            
+            # Delete the document (cascade will delete related risks, extracted text)
+            document.delete()
+            
+            # Try to delete physical file if it exists
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"✅ Deleted file: {file_path}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not delete file: {e}")
+            
+            logger.info(f"✅ Document {pk} deleted successfully")
+            
+            return Response({
+                'success': True,
+                'message': 'Document deleted successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except Document.DoesNotExist:
+            logger.warning(f"❌ Document {pk} not found")
+            return Response({
+                'success': False,
+                'error': 'Document not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"❌ Delete error: {str(e)}")
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class DocumentProcessView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, pk):
-        print(f"\n{'='*60}")
-        print(f"🚀 PROCESSING REQUEST for document: {pk}")
-        print(f"{'='*60}")
+        document = get_object_or_404(Document, pk=pk, user=request.user)
         
-        try:
-            # Get the document
-            document = get_object_or_404(Document, pk=pk, user=request.user)
-            print(f"✅ Document found: {document.title}")
-            print(f"📁 File path: {document.file.path}")
-            print(f"📄 File exists: {os.path.exists(document.file.path)}")
-            
-            # Update status to PROCESSING
-            document.status = 'PROCESSING'
-            document.save()
-            print(f"📝 Status updated to: PROCESSING")
-            
-            def process_in_background(doc_id):
-                """Background thread for document processing"""
-                print(f"\n{'='*60}")
-                print(f"🔧 BACKGROUND THREAD STARTED for document: {doc_id}")
-                print(f"{'='*60}")
-                
-                try:
-                    # Import here to avoid circular imports
-                    from risk_analyzer.services import DocumentAnalysisService
-                    from documents.models import Document
-                    
-                    # Get fresh document instance
-                    doc = Document.objects.get(id=doc_id)
-                    
-                    # Process the document
-                    service = DocumentAnalysisService()
-                    result = service.process_document(doc)
-                    
-                    if result['success']:
-                        print(f"✅ Background processing completed successfully!")
-                        print(f"📊 Found {result.get('risk_count', 0)} risks")
-                    else:
-                        print(f"❌ Background processing failed: {result.get('error', 'Unknown error')}")
-                        
-                except Exception as e:
-                    print(f"💥 ERROR in background thread: {str(e)}")
-                    traceback.print_exc()
-                    
-                    # Update document status to FAILED
-                    try:
-                        from documents.models import Document
-                        doc = Document.objects.get(id=doc_id)
-                        doc.status = 'FAILED'
-                        doc.save()
-                        print(f"✅ Document status updated to FAILED")
-                    except:
-                        pass
-                
-                print(f"\n{'='*60}")
-                print(f"🔧 BACKGROUND THREAD FINISHED for document: {doc_id}")
-                print(f"{'='*60}\n")
-            
-            # Start background thread
-            thread = threading.Thread(
-                target=process_in_background,
-                args=(str(document.id),)
-            )
-            thread.daemon = True
-            thread.start()
-            
-            print(f"🎯 Background thread started successfully")
-            print(f"{'='*60}\n")
-            
-            return Response({
-                'success': True,
-                'message': 'Document processing started',
-                'document_id': str(document.id)
-            }, status=status.HTTP_202_ACCEPTED)
-            
-        except Exception as e:
-            print(f"💥 ERROR in DocumentProcessView:")
-            print(f"   Type: {type(e).__name__}")
-            print(f"   Message: {str(e)}")
-            traceback.print_exc()
-            print(f"{'='*60}\n")
-            
-            return Response({
-                'success': False,
-                'error': f"Failed to start processing: {str(e)}"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        def process_in_background():
+            from risk_analyzer.services import DocumentAnalysisService
+            service = DocumentAnalysisService()
+            service.process_document(document)
+        
+        thread = threading.Thread(target=process_in_background)
+        thread.daemon = True
+        thread.start()
+        
+        return Response({
+            'message': 'Document processing started',
+            'document_id': str(document.id)
+        }, status=status.HTTP_202_ACCEPTED)
 
 class DocumentWithRiskCountView(generics.ListAPIView):
+    """Get documents with risk counts for analytics"""
     serializer_class = DocumentSerializer
     permission_classes = [permissions.IsAuthenticated]
     
@@ -136,12 +114,8 @@ class DocumentWithRiskCountView(generics.ListAPIView):
         queryset = self.get_queryset()
         data = []
         for doc in queryset[:10]:
-            try:
-                from risk_analyzer.models import RiskAnalysis
-                risk_count = RiskAnalysis.objects.filter(document=doc).count()
-            except:
-                risk_count = 0
-                
+            from risk_analyzer.models import RiskAnalysis
+            risk_count = RiskAnalysis.objects.filter(document=doc).count()
             doc_data = {
                 'id': doc.id,
                 'title': doc.title,

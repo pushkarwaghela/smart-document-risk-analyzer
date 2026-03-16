@@ -2,21 +2,18 @@ import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { fetchDocuments } from '../store/slices/documentSlice'
+import { fetchDocuments, deleteDocument, bulkDeleteDocuments } from '../store/slices/documentSlice'
+import { exportToCSV } from '../services/exportService'
 import {
     DocumentTextIcon,
     ClockIcon,
     CheckCircleIcon,
     XCircleIcon,
     MagnifyingGlassIcon,
-    FunnelIcon,
-    ArrowUpIcon,
-    ArrowDownIcon,
     CloudArrowDownIcon,
     EyeIcon,
     TrashIcon,
     ShareIcon,
-    EllipsisHorizontalIcon,
 } from '@heroicons/react/24/outline'
 import Select from 'react-select'
 import DatePicker from 'react-datepicker'
@@ -27,6 +24,8 @@ import toast from 'react-hot-toast'
 const DocumentList = () => {
     const dispatch = useDispatch()
     const { documents, loading } = useSelector((state) => state.documents)
+    const { token } = useSelector((state) => state.auth)
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
     const [searchQuery, setSearchQuery] = useState('')
     const [statusFilter, setStatusFilter] = useState([])
@@ -37,8 +36,7 @@ const DocumentList = () => {
     const [sortDirection, setSortDirection] = useState('desc')
     const [filteredDocs, setFilteredDocs] = useState([])
     const [selectedDocs, setSelectedDocs] = useState([])
-    const [viewMode, setViewMode] = useState('table') // 'table' or 'grid'
-    const [hoveredDoc, setHoveredDoc] = useState(null)
+    const [viewMode, setViewMode] = useState('table')
 
     const fuse = new Fuse(documents || [], {
         keys: ['title', 'document_type'],
@@ -98,10 +96,10 @@ const DocumentList = () => {
     }, [documents, searchQuery, statusFilter, typeFilter, dateRange, sortField, sortDirection])
 
     const statusOptions = [
-        { value: 'PENDING', label: 'Pending', color: 'gray' },
-        { value: 'PROCESSING', label: 'Processing', color: 'yellow' },
-        { value: 'COMPLETED', label: 'Completed', color: 'green' },
-        { value: 'FAILED', label: 'Failed', color: 'red' },
+        { value: 'PENDING', label: 'Pending' },
+        { value: 'PROCESSING', label: 'Processing' },
+        { value: 'COMPLETED', label: 'Completed' },
+        { value: 'FAILED', label: 'Failed' },
     ]
 
     const typeOptions = [
@@ -162,11 +160,30 @@ const DocumentList = () => {
         }
     }
 
+    const handleDeleteSingle = (docId) => {
+        if (window.confirm('Are you sure you want to delete this document?')) {
+            dispatch(deleteDocument(docId))
+        }
+    }
+
     const handleBulkDelete = () => {
-        if (selectedDocs.length > 0) {
-            toast.success(`${selectedDocs.length} documents deleted successfully!`)
+        if (selectedDocs.length === 0) return
+        if (window.confirm(`Are you sure you want to delete ${selectedDocs.length} documents?`)) {
+            dispatch(bulkDeleteDocuments(selectedDocs))
             setSelectedDocs([])
         }
+    }
+
+    const handleExport = () => {
+        const data = filteredDocs.map(doc => ({
+            'Title': doc.title,
+            'Type': doc.document_type,
+            'Status': doc.status,
+            'Uploaded': new Date(doc.uploaded_at).toLocaleDateString(),
+            'Risk Count': doc.risk_count || 0
+        }))
+        exportToCSV(data, 'documents_export')
+        toast.success('Export completed!')
     }
 
     const containerVariants = {
@@ -237,11 +254,11 @@ const DocumentList = () => {
                         </button>
                     </div>
 
-                    {/* Export Button */}
+                    {/* Export Button - NOW WORKING */}
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => toast.success('Export started!')}
+                        onClick={handleExport}
                         className="btn-secondary flex items-center"
                     >
                         <CloudArrowDownIcon className="w-5 h-5 mr-2" />
@@ -261,7 +278,7 @@ const DocumentList = () => {
                 </div>
             </div>
 
-            {/* Bulk Actions */}
+            {/* Bulk Actions - NOW WORKING */}
             <AnimatePresence>
                 {selectedDocs.length > 0 && (
                     <motion.div
@@ -460,10 +477,7 @@ const DocumentList = () => {
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
                                                 exit={{ opacity: 0 }}
-                                                whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
                                                 className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                                                onMouseEnter={() => setHoveredDoc(doc.id)}
-                                                onMouseLeave={() => setHoveredDoc(null)}
                                             >
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <input
@@ -475,12 +489,7 @@ const DocumentList = () => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <motion.div
-                                                            animate={hoveredDoc === doc.id ? { rotate: 360 } : {}}
-                                                            transition={{ duration: 0.5 }}
-                                                        >
-                                                            <DocumentTextIcon className="w-5 h-5 text-gray-400 mr-3" />
-                                                        </motion.div>
+                                                        <DocumentTextIcon className="w-5 h-5 text-gray-400 mr-3" />
                                                         <div className="text-sm font-medium text-gray-900 dark:text-white">
                                                             {doc.title}
                                                         </div>
@@ -517,7 +526,7 @@ const DocumentList = () => {
                                                             <ShareIcon className="w-5 h-5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => toast.success('Deleted!')}
+                                                            onClick={() => handleDeleteSingle(doc.id)}
                                                             className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                                         >
                                                             <TrashIcon className="w-5 h-5" />
@@ -613,7 +622,7 @@ const DocumentList = () => {
                                         <ShareIcon className="w-5 h-5" />
                                     </button>
                                     <button
-                                        onClick={() => toast.success('Deleted!')}
+                                        onClick={() => handleDeleteSingle(doc.id)}
                                         className="p-2 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                     >
                                         <TrashIcon className="w-5 h-5" />

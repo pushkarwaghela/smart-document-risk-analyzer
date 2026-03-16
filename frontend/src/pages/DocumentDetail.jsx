@@ -27,9 +27,17 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// ✅ Use CDN with version 3.11.174 (definitely exists)
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.296/pdf.worker.min.js`;
-
+// ✅ FIXED: Use local worker from node_modules
+try {
+    // For Vite
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.js',
+        import.meta.url
+    ).toString();
+} catch (e) {
+    // Fallback to CDN with correct version
+    pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
+}
 const DocumentDetail = () => {
     const { id } = useParams()
     const location = useLocation()

@@ -22,9 +22,10 @@ const SimilarDocuments = ({ documentId }) => {
                 `${API_URL}/ai/similar/${documentId}/`,
                 { headers: { Authorization: `Token ${token}` } }
             );
-            setDocuments(response.data.results);
+            setDocuments(response.data.results || []);
         } catch (error) {
             console.error('Error fetching similar documents:', error);
+            setDocuments([]);
         } finally {
             setLoading(false);
         }
@@ -40,7 +41,22 @@ const SimilarDocuments = ({ documentId }) => {
         );
     }
 
-    if (documents.length === 0) return null;
+    // ✅ FIXED: Empty state with icon
+    if (documents.length === 0) {
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-center"
+            >
+                <DocumentTextIcon className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                <p className="text-gray-500 dark:text-gray-400">No similar documents found</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Upload more documents to see similarities
+                </p>
+            </motion.div>
+        );
+    }
 
     const getRelevanceColor = (relevance) => {
         switch (relevance) {
@@ -77,7 +93,7 @@ const SimilarDocuments = ({ documentId }) => {
                                 </div>
                             </div>
                             <span className={`px-2 py-1 text-xs rounded-full ${getRelevanceColor(doc.relevance)}`}>
-                                {doc.similarity.toFixed(1)}% match
+                                {doc.similarity?.toFixed(1) || 0}% match
                             </span>
                         </div>
                     </Link>

@@ -2,8 +2,8 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
 from documents.models import Document, ExtractedText
-from django.db.models import Q
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -11,40 +11,46 @@ class SemanticSearch:
     """Semantic search for documents using embeddings"""
     
     def __init__(self):
-        # Load model for embeddings
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.model = None
         self.index = None
         self.documents_cache = []
         self.embeddings_cache = []
+        self.is_initialized = False  # ✅ Fixed attribute name
         
+        try:
+            logger.info("Loading SentenceTransformer model...")
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            self.is_initialized = True
+            logger.info("✅ SemanticSearch initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load model: {e}")
+            self.is_initialized = False
+    
     def build_index(self, user_id=None):
-        """Build FAISS index for user's documents"""
+        if not self.is_initialized:
+            return False
+            
         try:
             # Get documents
-            documents = Document.objects.all()
+            docs = Document.objects.filter(status='COMPLETED')
             if user_id:
-                documents = documents.filter(user_id=user_id)
+                docs = docs.filter(user_id=user_id)
             
-            documents = documents.filter(status='COMPLETED')
-            
-            if not documents:
-                return False
-            
-            # Get text for each document
             texts = []
             self.documents_cache = []
             
-            for doc in documents:
+            for doc in docs:
                 try:
                     extracted = ExtractedText.objects.get(document=doc)
-                    texts.append(extracted.raw_text[:1000])  # Limit length
-                    self.documents_cache.append({
-                        'id': str(doc.id),
-                        'title': doc.title,
-                        'type': doc.get_document_type_display(),
-                        'date': doc.uploaded_at.isoformat()
-                    })
-                except ExtractedText.DoesNotExist:
+                    if extracted.raw_text and len(extracted.raw_text) > 50:
+                        texts.append(extracted.raw_text[:1000])
+                        self.documents_cache.append({
+                            'id': str(doc.id),
+                            'title': doc.title,
+                            'type': doc.get_document_type_display(),
+                            'date': doc.uploaded_at.isoformat()
+                        })
+                except:
                     continue
             
             if not texts:
@@ -54,85 +60,66 @@ class SemanticSearch:
             embeddings = self.model.encode(texts)
             self.embeddings_cache = embeddings
             
-            # Build FAISS index
+            # Build index
             dimension = embeddings.shape[1]
-            self.index = faiss.IndexFlatIP(dimension)  # Inner product for cosine similarity
+            self.index = faiss.IndexFlatIP(dimension)
             self.index.add(embeddings.astype('float32'))
             
-            logger.info(f"✅ Built semantic index with {len(texts)} documents")
+            logger.info(f"✅ Index built with {len(texts)} documents")
             return True
             
         except Exception as e:
-            logger.error(f"Error building index: {str(e)}")
+            logger.error(f"❌ Error building index: {e}")
             return False
     
     def search(self, query, top_k=5):
-        """Search for semantically similar documents"""
+        if not self.is_initialized or self.index is None or self.index.ntotal == 0:
+            return []
+            
         try:
-            if self.index is None or self.index.ntotal == 0:
-                return []
+            query_vec = self.model.encode([query])
+            scores, indices = self.index.search(query_vec.astype('float32'), min(top_k, self.index.ntotal))
             
-            # Generate query embedding
-            query_embedding = self.model.encode([query])
-            
-            # Search
-            scores, indices = self.index.search(
-                query_embedding.astype('float32'), 
-                min(top_k, self.index.ntotal)
-            )
-            
-            # Format results
             results = []
             for i, idx in enumerate(indices[0]):
                 if idx < len(self.documents_cache):
                     results.append({
                         **self.documents_cache[idx],
-                        'similarity': float(scores[0][i] * 100),
-                        'relevance': 'high' if scores[0][i] > 0.7 else 'medium' if scores[0][i] > 0.5 else 'low'
+                        'similarity': round(float(scores[0][i] * 100), 1)
                     })
-            
-            return sorted(results, key=lambda x: x['similarity'], reverse=True)
-            
+            return results
         except Exception as e:
-            logger.error(f"Search error: {str(e)}")
+            logger.error(f"❌ Search error: {e}")
             return []
     
-    def find_similar(self, document_id, top_k=3):
-        """Find documents similar to a given document"""
+    def find_similar(self, doc_id, top_k=3):
+        if not self.is_initialized or self.index is None:
+            return []
+            
         try:
-            # Find document index
+            # Find index of document
             doc_idx = None
             for i, doc in enumerate(self.documents_cache):
-                if doc['id'] == document_id:
+                if doc['id'] == doc_id:
                     doc_idx = i
                     break
             
             if doc_idx is None:
                 return []
             
-            # Get document embedding
-            doc_embedding = self.embeddings_cache[doc_idx].reshape(1, -1)
+            doc_vec = self.embeddings_cache[doc_idx].reshape(1, -1)
+            scores, indices = self.index.search(doc_vec.astype('float32'), min(top_k + 1, self.index.ntotal))
             
-            # Search
-            scores, indices = self.index.search(
-                doc_embedding.astype('float32'),
-                min(top_k + 1, self.index.ntotal)  # +1 to exclude the document itself
-            )
-            
-            # Format results (skip first result which is the document itself)
             results = []
             for i, idx in enumerate(indices[0]):
                 if idx != doc_idx and idx < len(self.documents_cache):
                     results.append({
                         **self.documents_cache[idx],
-                        'similarity': float(scores[0][i] * 100),
-                        'relevance': 'high' if scores[0][i] > 0.7 else 'medium' if scores[0][i] > 0.5 else 'low'
+                        'similarity': round(float(scores[0][i] * 100), 1)
                     })
                     if len(results) >= top_k:
                         break
-            
             return results
-            
         except Exception as e:
-            logger.error(f"Find similar error: {str(e)}")
+            logger.error(f"❌ Find similar error: {e}")
             return []
